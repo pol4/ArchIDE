@@ -19,7 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from backend import agents, gateway, metamodel, model_store, runtime, sandbox
+from backend import agents, analysis, gateway, metamodel, model_store, runtime, sandbox
 from backend import config as config_mod
 from backend import runs
 from backend.graph_schema import registry_errors, validate_graph
@@ -31,6 +31,7 @@ FRONTEND = (BASE / "frontend").resolve()
 _SANDBOX_RE = re.compile(r"^/sandbox/(repo|meta|event|result|validate)/([0-9a-f]+)$")
 _RUN_RE = re.compile(r"^/api/runs/([0-9a-f]+)(/cancel)?$")
 _MODEL_RE = re.compile(r"^/api/models(?:/([A-Za-z0-9._-]+))?$")
+_MODEL_SUB_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(aggregations|coverage)$")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -104,6 +105,15 @@ class Handler(BaseHTTPRequestHandler):
             payload["registry_errors"] = registry_errors()
             return self._json(200, payload)
 
+        match = _MODEL_SUB_RE.match(route)
+        if match:
+            model = model_store.load_model(config_mod.MODELS_DIR, match.group(1))
+            if model is None:
+                return self._json(404, {"detail": "unknown model"})
+            view = match.group(2)
+            data = analysis.aggregations(model) if view == "aggregations" else analysis.coverage(model)
+            return self._json(200, {view: data})
+
         match = _MODEL_RE.match(route)
         if match:
             name = match.group(1)
@@ -140,6 +150,22 @@ class Handler(BaseHTTPRequestHandler):
             except json.JSONDecodeError as exc:
                 return self._json(400, {"detail": f"invalid JSON: {exc}"})
             return self._json(200, config_mod.save_config(patch))
+
+        match = _MODEL_RE.match(route)
+        if match and match.group(1):
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            graph = body.get("graph")
+            if not isinstance(graph, dict):
+                return self._json(400, {"detail": "body must contain a `graph` object"})
+            validation = validate_graph(graph)
+            if not validation["ok"]:
+                return self._json(422, {"ok": False, "validation": validation})
+            path, digest = model_store.save_model(graph, config_mod.MODELS_DIR, match.group(1))
+            return self._json(200, {"ok": True, "hash": digest, "path": str(path), "validation": validation})
+
         return self._json(404, {"detail": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802

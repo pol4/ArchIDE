@@ -69,10 +69,11 @@
 - **Шаги:** запуск → панель Validation; настройка `max_repairs`.
 - **Ожидание:** модель валидна (нет ошибок `✕`); агент дорабатывает до устранения
   ошибок; проверяются **якоря аспектов** и **кросс-аспектные связи** (реестр
-  самосогласован).
+  самосогласован); **агрегационные интерфейсы** имеют членов и валидный контракт;
+  считается **покрытие требований** (трассировка).
 - **Покрытие:** API `S8 validate tool rejects unknown job`, `S8 validator accepts/rejects`,
-  `Ф2.2 registry self-consistent / valid aspect / cross-aspect / anchor`;
-  браузер `S8 validation panel reports a valid model`.
+  `Ф2.2 …`, `Ф2.3 aggregation …`, `Ф2.4 coverage …`;
+  браузер `S8 validation panel reports a valid model`, `Ф2.4 coverage shown`.
 
 ## S9 — Устойчивость к ошибкам
 - **Цель:** понятная ошибка при недоступном LLM/битом ответе.

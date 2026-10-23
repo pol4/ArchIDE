@@ -144,6 +144,24 @@ def validate_graph(graph) -> dict:
                         f"`{types.get(dst)}` (allowed: {sorted(allowed)})"
                     )
 
+    # Ф2.3 - aggregation interfaces must have members and a valid contract
+    aggregation_members: dict[str, list[str]] = {}
+    for edge in edges:
+        if isinstance(edge, dict) and edge.get("type") == "aggregates" and edge.get("target") in ids:
+            aggregation_members.setdefault(edge["target"], []).append(edge.get("source"))
+    node_by_id = {n.get("id"): n for n in nodes if isinstance(n, dict)}
+    for nid, ntype in types.items():
+        if ntype != "AggregationInterface":
+            continue
+        if not aggregation_members.get(nid):
+            errors.append(f"aggregation {nid}: no members (no `aggregates` edge targets it)")
+        contract = (node_by_id.get(nid) or {}).get("contract")
+        if contract:
+            if contract not in ids:
+                errors.append(f"aggregation {nid}: contract `{contract}` not found")
+            elif types.get(contract) != "Interface":
+                errors.append(f"aggregation {nid}: contract `{contract}` must be an Interface")
+
     for node in nodes:
         if isinstance(node, dict) and not node.get("evidence"):
             warnings.append(f"node {node.get('id')}: no `evidence` (file references)")

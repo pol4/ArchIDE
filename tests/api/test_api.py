@@ -143,6 +143,39 @@ def main() -> int:
     st, _ = req("POST", "/api/validate", {"nope": 1})
     check("Ф2.2 validate rejects missing graph (400)", st == 400, str(st))
 
+    # Ф2.3/Ф2.4 - aggregation interfaces + requirement coverage
+    spectest = {"nodes": [
+        {"id": "sys://s", "type": "System", "parent": None, "evidence": ["a.py"]},
+        {"id": "component://s/svc", "type": "Component", "parent": "sys://s", "evidence": ["svc.py"]},
+        {"id": "iface://s/a", "type": "Interface", "parent": "component://s/svc", "evidence": ["svc.py"]},
+        {"id": "iface://s/b", "type": "Interface", "parent": "component://s/svc", "evidence": ["svc.py"]},
+        {"id": "agg://s/channel", "type": "AggregationInterface", "parent": "sys://s", "contract": "iface://s/a", "evidence": ["svc.py"]},
+        {"id": "req://REG-1", "type": "Requirement", "parent": None, "evidence": ["docs.md"]},
+    ], "edges": [
+        {"source": "iface://s/a", "target": "agg://s/channel", "type": "aggregates"},
+        {"source": "iface://s/b", "target": "agg://s/channel", "type": "aggregates"},
+        {"source": "component://s/svc", "target": "iface://s/a", "type": "exposes"},
+        {"source": "req://REG-1", "target": "component://s/svc", "type": "satisfies"},
+    ]}
+    st, r = req("PUT", "/api/models/spectest", {"graph": spectest})
+    check("Ф2.3 model with aggregation accepted", st == 200 and r.get("ok") is True, str(r.get("validation", {}).get("errors")))
+
+    st, aggs = req("GET", "/api/models/spectest/aggregations")
+    agg = (aggs.get("aggregations") or [{}])[0]
+    check("Ф2.3 aggregation listed with members+contract",
+          st == 200 and len(agg.get("members", [])) == 2 and agg.get("contract") == "iface://s/a", str(agg))
+
+    st, cov = req("GET", "/api/models/spectest/coverage")
+    c = cov.get("coverage") or {}
+    check("Ф2.4 coverage computed", st == 200 and c.get("requirements") == 1 and c.get("covered") == 1 and c.get("ratio") == 1.0, str(c))
+
+    bad_agg = {"nodes": [
+        {"id": "sys://s", "type": "System", "parent": None, "evidence": ["a.py"]},
+        {"id": "agg://s/x", "type": "AggregationInterface", "parent": "sys://s", "evidence": ["a.py"]},
+    ], "edges": []}
+    st, r = req("PUT", "/api/models/badagg", {"graph": bad_agg})
+    check("Ф2.3 empty aggregation rejected (422)", st == 422 and r.get("ok") is False, str(st))
+
     # S3 - two-pass code + docs, merge + deviations + source filter data
     put_config({"context": {"compare_docs": True}})
     snap, events = run_and_wait(REPO, "builtin")

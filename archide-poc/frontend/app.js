@@ -205,6 +205,7 @@ async function pollRun() {
       renderValidation(snap.validation);
     }
     logMeta(snap.meta);
+    await showCoverage(snap.meta);
     if (snap.error) appendEvents([{ type: "error", text: snap.error, ts: Date.now() / 1000 }]);
 
     if (snap.status === "done") setStatus("Done", "ok");
@@ -226,6 +227,22 @@ async function stopRun() {
     await api(`/api/runs/${state.runId}/cancel`, { method: "POST" });
   } catch (e) {
     setStatus("Cancel failed: " + e.message, "error");
+  }
+}
+
+async function showCoverage(meta) {
+  if (!meta || !meta.model_path) return;
+  const name = String(meta.model_path).split("/").pop().replace(/\.json$/, "");
+  try {
+    const res = await api(`/api/models/${encodeURIComponent(name)}/coverage`);
+    const cov = res.coverage || {};
+    const el = $("validation");
+    const div = document.createElement("div");
+    div.className = "ok";
+    div.textContent = `coverage: ${cov.covered ?? 0}/${cov.requirements ?? 0} requirements`;
+    el.appendChild(div);
+  } catch (_) {
+    /* coverage is best-effort */
   }
 }
 

@@ -112,6 +112,7 @@ ANCHORS: dict[str, set[str]] = {
     "Environment": {"System"},
     "NFR": {"System", "Container", "Component"},
     "SLO": {"System", "Container", "Component"},
+    "AggregationInterface": {"System", "Container", "Component"},
 }
 
 # Referential actions per edge type (applied on delete/move — see ROADMAP Ф4.2).

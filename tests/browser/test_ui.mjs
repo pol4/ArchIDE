@@ -138,6 +138,7 @@ async function runLive(browser) {
   check('S5 activity feed has events', events > 0, `events=${events}`);
   check('S7 context report present', /context:/i.test(await page.$eval('#log', (el) => el.textContent)));
   check('Ф2.1 model hash shown in log', /model:/i.test(await page.$eval('#log', (el) => el.textContent)));
+  check('Ф2.4 coverage shown in validation', /coverage:/i.test(await page.$eval('#validation', (el) => el.textContent)));
 
   await page.close();
 }
