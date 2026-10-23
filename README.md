@@ -26,7 +26,7 @@
 - **Строгость машинная, а не дисциплинарная.** Закрытая метамодель + валидатор +
   цикл доработки; неподделываемые метки трассируемости (см. `Concept.md` §15).
 
-Подробно: [`Concept.md`](Concept.md) · План: [`ROADMAP.md`](ROADMAP.md).
+Подробно: [`Concept.md`](Concept.md) · Архитектура системы: [`ARCHITECTURE.md`](ARCHITECTURE.md) · План: [`ROADMAP.md`](ROADMAP.md).
 
 ## Скриншоты
 
@@ -96,7 +96,8 @@ docker build -t archide-kilo:latest agents/kilo/   # опционально: Kil
 
 ```
 README.md            стартовая страница (эта)
-Concept.md           концепция (архитектурный граф, аспекты, метки, …)
+Concept.md           концепция (граф, аспекты, версионность, RAG, метки, …)
+ARCHITECTURE.md      архитектура системы целиком
 ROADMAP.md           дорожная карта
 docs/screenshots/    скриншоты UI
 archide-poc/         рабочий PoC (сервер, агенты, UI)
