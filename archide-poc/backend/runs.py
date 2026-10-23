@@ -5,6 +5,7 @@ reasoning / logs) and can be cancelled by the user.
 """
 from __future__ import annotations
 
+import pathlib
 import secrets
 import subprocess
 import threading
@@ -69,6 +70,19 @@ def _worker(run: Run, repo: str, agent_id: str, cfg: dict) -> None:
         run.graph = graph
         run.validation = validate_graph(graph)
         run.status = "done" if run.validation["ok"] else "invalid"
+
+        # persist the model canonically (model-as-storage, ROADMAP Ф2.1)
+        try:
+            from . import config as config_mod
+            from . import model_store
+            name = pathlib.Path(str(repo).rstrip("/")).name or "model"
+            path, digest = model_store.save_model(graph, config_mod.MODELS_DIR, name)
+            meta["model_path"] = str(path)
+            meta["model_hash"] = digest
+            run.add_event("status", f"model saved: {path.name} ({digest})")
+        except Exception as exc:  # noqa: BLE001 - persistence is best-effort
+            run.add_event("log", f"model not saved: {exc}")
+
         if run.status == "invalid":
             run.add_event("error", "graph failed validation: " + "; ".join(run.validation["errors"][:5]))
     except CancelledError:

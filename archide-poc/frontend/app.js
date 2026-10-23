@@ -237,11 +237,12 @@ function logMeta(meta) {
       `(${Math.round((c.ratio || 0) * 100)}%), files ${c.files_in}->${c.files_out}, ` +
       `extracted ${c.extracted}, truncated ${c.truncated}, dropped ${(c.dropped || []).length}`
     : `context: ${c.original_chars || 0} chars, ${c.files_in || 0} files (no compression)`;
+  const modelLine = meta.model_hash ? `model: ${meta.model_hash}` : "";
   log(
     "runner: " + meta.runner + "\n" +
     "agent: " + meta.agent + "\n" +
     "repo: " + meta.repo_path + "\n" +
-    ctxLine
+    ctxLine + (modelLine ? "\n" + modelLine : "")
   );
 }
 

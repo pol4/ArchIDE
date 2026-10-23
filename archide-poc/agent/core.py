@@ -98,14 +98,27 @@ def _try_parse(text: str) -> tuple[dict | None, str | None]:
     return graph, None
 
 
-# Metamodel subset used for agent-side validation (mirrors backend/graph_schema.py).
+# Metamodel vocabularies for agent-side validation.
+# MIRROR of backend/metamodel.py (kept in sync; the agent image cannot import backend).
 NODE_TYPES = {
-    "System", "Container", "Component", "Module", "ExternalSystem", "Actor",
-    "Interface", "DataStore", "DataEntity",
+    "System", "Container", "Component", "Module", "Actor", "ExternalSystem",
+    "Interface", "Operation", "Message", "SchemaRef",
+    "DataStore", "DataEntity", "Attribute",
+    "StateMachine", "State", "Transition", "Event",
+    "Process", "Activity", "Task", "Gateway", "Participant",
+    "Role", "Permission", "Policy", "Principal", "Resource",
+    "Node", "Environment", "Runtime", "InfraResource",
+    "NFR", "SLO", "Constraint",
+    "AggregationInterface", "Capability", "Decision", "Requirement", "Artifact", "Agent",
 }
 EDGE_TYPES = {
-    "contains", "depends_on", "calls", "publishes", "subscribes", "reads",
-    "writes", "exposes", "consumes", "implements", "aggregates",
+    "contains",
+    "depends_on", "calls", "publishes", "subscribes", "reads", "writes",
+    "exposes", "consumes", "implements", "realizes", "aggregates",
+    "satisfies", "derived_from", "constrains", "verifies", "conflicts_with",
+    "implemented_by", "tested_by", "deployed_as", "generated_from",
+    "owns", "anchored_to", "governs", "allowed", "emits", "flows_to", "has", "deployed_on",
+    "owned_by", "decided_by", "assigned_to",
 }
 
 

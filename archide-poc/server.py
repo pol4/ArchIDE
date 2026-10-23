@@ -19,7 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from backend import agents, gateway, runtime, sandbox
+from backend import agents, gateway, metamodel, model_store, runtime, sandbox
 from backend import config as config_mod
 from backend import runs
 from backend.graph_schema import validate_graph
@@ -30,6 +30,7 @@ FRONTEND = (BASE / "frontend").resolve()
 
 _SANDBOX_RE = re.compile(r"^/sandbox/(repo|meta|event|result|validate)/([0-9a-f]+)$")
 _RUN_RE = re.compile(r"^/api/runs/([0-9a-f]+)(/cancel)?$")
+_MODEL_RE = re.compile(r"^/api/models(?:/([A-Za-z0-9._-]+))?$")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -98,6 +99,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, config_mod.load_config())
         if route == "/api/volume":
             return self._volume_info()
+        if route == "/api/metamodel":
+            return self._json(200, metamodel.registry())
+
+        match = _MODEL_RE.match(route)
+        if match:
+            name = match.group(1)
+            if not name:
+                return self._json(200, {"models": model_store.list_models(config_mod.MODELS_DIR)})
+            model = model_store.load_model(config_mod.MODELS_DIR, name)
+            if model is None:
+                return self._json(404, {"detail": "unknown model"})
+            return self._json(200, model)
 
         match = _RUN_RE.match(route)
         if match and not match.group(2):

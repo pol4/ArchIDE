@@ -70,6 +70,7 @@ def run_and_wait(repo: str, agent: str, timeout: float = 60) -> tuple[dict, list
 
 def main() -> int:
     print(f"API e2e against {BASE}  (repo={REPO})")
+    sys.path.insert(0, str(POC))
 
     # S6 - agent registry
     _, agents = req("GET", "/api/agents")
@@ -96,6 +97,23 @@ def main() -> int:
     check("S2 graph valid and non-empty", bool(val.get("ok")) and len(graph.get("nodes", [])) > 0,
           json.dumps(val.get("errors", [])[:3]))
     check("S2 activity events present", any("pass 1/2" in e.get("text", "") for e in events))
+
+    # Ф2.1 - metamodel registry + model persistence
+    _, mm = req("GET", "/api/metamodel")
+    check("Ф2.1 metamodel registry exposed",
+          bool(mm.get("node_types")) and bool(mm.get("edge_types")) and "structure" in (mm.get("aspects") or {}),
+          str(list((mm.get("aspects") or {}).keys())))
+    check("Ф2.1 referential actions exposed", "contains" in (mm.get("referential_actions") or {}))
+    check("Ф2.1 run meta carries the model hash", bool((snap.get("meta") or {}).get("model_hash")))
+
+    _, models = req("GET", "/api/models")
+    names = [m.get("name") for m in models.get("models", [])]
+    check("Ф2.1 model persisted after a run", len(names) > 0, str(names))
+    if names:
+        _, stored = req("GET", f"/api/models/{names[0]}")
+        check("Ф2.1 stored model has nodes", bool(stored.get("nodes")))
+        from backend import model_store  # noqa: E402
+        check("Ф2.1 canonical hash is stable", model_store.model_hash(stored) == models["models"][0]["hash"])
 
     # S3 - two-pass code + docs, merge + deviations + source filter data
     put_config({"context": {"compare_docs": True}})

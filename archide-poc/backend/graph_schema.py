@@ -6,31 +6,7 @@ referential integrity.
 """
 from __future__ import annotations
 
-NODE_TYPES = {
-    "System",
-    "Container",
-    "Component",
-    "Module",
-    "ExternalSystem",
-    "Actor",
-    "Interface",
-    "DataStore",
-    "DataEntity",
-}
-
-EDGE_TYPES = {
-    "contains",
-    "depends_on",
-    "calls",
-    "publishes",
-    "subscribes",
-    "reads",
-    "writes",
-    "exposes",
-    "consumes",
-    "implements",
-    "aggregates",
-}
+from .metamodel import EDGE_TYPES, NODE_TYPES  # single source of truth
 
 
 def validate_graph(graph) -> dict:

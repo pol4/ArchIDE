@@ -22,9 +22,9 @@
 - **Шаги:** ввести адрес репозитория → выбрать агента → «Reconstruct graph» →
   наблюдать активность.
 - **Ожидание:** статус `Done`, граф отрисован, модель валидна, в ленте есть
-  `pass 1/2`.
-- **Покрытие:** API `S2 run completes/graph valid/events`; браузер `S2 run finished`,
-  `S2 graph rendered`.
+  `pass 1/2`; **модель сохранена канонически** (`model: <hash>`, `GET /api/models`).
+- **Покрытие:** API `S2 run completes/graph valid/events` + `Ф2.1 metamodel/model
+  persistence`; браузер `S2 run finished`, `S2 graph rendered`, `Ф2.1 model hash`.
 
 ## S3 — Двухпроходная реконструкция код + документация
 - **Цель:** сравнить модель, восстановленную по коду и по документации.

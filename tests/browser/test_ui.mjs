@@ -134,6 +134,7 @@ async function runLive(browser) {
   check('S8 validation panel reports a valid model', /nodes:/.test(validation) && !validation.includes('✕'), validation.slice(0, 80));
   check('S5 activity feed has events', events > 0, `events=${events}`);
   check('S7 context report present', /context:/i.test(await page.$eval('#log', (el) => el.textContent)));
+  check('Ф2.1 model hash shown in log', /model:/i.test(await page.$eval('#log', (el) => el.textContent)));
 
   await page.close();
 }
