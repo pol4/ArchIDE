@@ -115,6 +115,34 @@ def main() -> int:
         from backend import model_store  # noqa: E402
         check("Ф2.1 canonical hash is stable", model_store.model_hash(stored) == models["models"][0]["hash"])
 
+    # Ф2.2 - aspect / anchor / cross-aspect validation
+    check("Ф2.2 registry is self-consistent", mm.get("registry_errors") == [], str(mm.get("registry_errors")))
+    aspect_nodes = [
+        {"id": "sys://a", "type": "System", "parent": None, "evidence": ["a.py"]},
+        {"id": "component://a/svc", "type": "Component", "parent": "sys://a", "evidence": ["svc.py"]},
+        {"id": "iface://a/svc", "type": "Interface", "parent": "component://a/svc", "evidence": ["svc.py"]},
+    ]
+    st, r = req("POST", "/api/validate",
+                {"graph": {"nodes": aspect_nodes, "edges": [{"source": "component://a/svc", "target": "iface://a/svc", "type": "exposes"}]}})
+    check("Ф2.2 valid aspect graph accepted", st == 200 and r["validation"]["ok"] is True,
+          str(r.get("validation", {}).get("errors")))
+
+    st, r = req("POST", "/api/validate",
+                {"graph": {"nodes": aspect_nodes, "edges": [{"source": "component://a/svc", "target": "component://a/svc", "type": "exposes"}]}})
+    check("Ф2.2 cross-aspect violation rejected", r["validation"]["ok"] is False and any("exposes" in e for e in r["validation"]["errors"]),
+          str(r["validation"]["errors"][:2]))
+
+    st, r = req("POST", "/api/validate", {"graph": {"nodes": [
+        {"id": "sys://a", "type": "System", "parent": None, "evidence": ["a.py"]},
+        {"id": "actor://u", "type": "Actor", "parent": "sys://a", "evidence": ["a.py"]},
+        {"id": "iface://x", "type": "Interface", "parent": "actor://u", "evidence": ["a.py"]},
+    ], "edges": []}})
+    check("Ф2.2 anchor violation rejected", r["validation"]["ok"] is False and any("anchored" in e for e in r["validation"]["errors"]),
+          str(r["validation"]["errors"][:2]))
+
+    st, _ = req("POST", "/api/validate", {"nope": 1})
+    check("Ф2.2 validate rejects missing graph (400)", st == 400, str(st))
+
     # S3 - two-pass code + docs, merge + deviations + source filter data
     put_config({"context": {"compare_docs": True}})
     snap, events = run_and_wait(REPO, "builtin")

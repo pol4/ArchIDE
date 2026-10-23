@@ -64,8 +64,11 @@
 ## S8 — Валидация графа и цикл доработки
 - **Цель:** гарантировать корректность графа.
 - **Шаги:** запуск → панель Validation; настройка `max_repairs`.
-- **Ожидание:** модель валидна (нет ошибок `✕`); агент дорабатывает до устранения ошибок.
-- **Покрытие:** API `S8 validate tool rejects unknown job`, `S8 validator accepts/rejects`;
+- **Ожидание:** модель валидна (нет ошибок `✕`); агент дорабатывает до устранения
+  ошибок; проверяются **якоря аспектов** и **кросс-аспектные связи** (реестр
+  самосогласован).
+- **Покрытие:** API `S8 validate tool rejects unknown job`, `S8 validator accepts/rejects`,
+  `Ф2.2 registry self-consistent / valid aspect / cross-aspect / anchor`;
   браузер `S8 validation panel reports a valid model`.
 
 ## S9 — Устойчивость к ошибкам

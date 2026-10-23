@@ -22,7 +22,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from backend import agents, gateway, metamodel, model_store, runtime, sandbox
 from backend import config as config_mod
 from backend import runs
-from backend.graph_schema import validate_graph
+from backend.graph_schema import registry_errors, validate_graph
 from backend.runner import reconstruct
 
 BASE = Path(__file__).resolve().parent
@@ -100,7 +100,9 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/api/volume":
             return self._volume_info()
         if route == "/api/metamodel":
-            return self._json(200, metamodel.registry())
+            payload = metamodel.registry()
+            payload["registry_errors"] = registry_errors()
+            return self._json(200, payload)
 
         match = _MODEL_RE.match(route)
         if match:
@@ -146,6 +148,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if route == "/api/reconstruct":
             return self._reconstruct()
+        if route == "/api/validate":
+            return self._validate()
         if route == "/api/volume/reset":
             return self._volume_reset()
         if route == "/llm/v1/chat/completions":
@@ -182,6 +186,17 @@ class Handler(BaseHTTPRequestHandler):
         cfg = config_mod.load_config()
         run_id = runs.start(repo, agent_id, cfg)
         return self._json(200, {"run_id": run_id})
+
+    def _validate(self) -> None:
+        """Stateless formal validation tool (metamodel + anchors + cross-aspect)."""
+        try:
+            body = self._read_json()
+        except json.JSONDecodeError as exc:
+            return self._json(400, {"detail": f"invalid JSON: {exc}"})
+        graph = body.get("graph")
+        if not isinstance(graph, dict):
+            return self._json(400, {"detail": "body must contain a `graph` object"})
+        return self._json(200, {"validation": validate_graph(graph)})
 
     def _volume_info(self) -> None:
         cfg = config_mod.load_config()
