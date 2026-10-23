@@ -87,7 +87,7 @@ graph TD
 **Projection Engine**
 - `Layout engine`, `Aspect renderers` (C4/DFD/state/BPMN/роли/…),
   `Serializers` (OpenAPI/proto/DDL/JSON Schema), `Slice builder` (§6),
-  `Coverage matrix` (§15.6).
+  `Coverage matrix` (§11).
 
 **Agent Sandbox Runtime**
 - `Agent registry`, `Scheduler`, `Container runtime` (изоляция, лимиты),
@@ -104,7 +104,7 @@ graph TD
 - `Connectors` (Confluence/Wiki/файлы), `Parser`, `Chunker`, `Requirement linker`.
 
 **Artifact / CI Service**
-- `Generators`, `Marker issuer/verifier` (§15), `Conformance suite`, `Gate`.
+- `Generators`, `Marker issuer/verifier` (§11), `Conformance suite`, `Gate`.
 
 **Registry**
 - `Requirements`, `Contracts (GCR)`, `Aliases`, `Keys`.
@@ -138,7 +138,7 @@ commit или блок с причиной (referential actions).
 (доки + элементы модели) → заземлённый ответ с **цитатами**; сверка док↔модель.
 
 **6.5 Федерация:** publish контракта → GCR → discovery → федеративные рёбра →
-derived-требования/тесты (§11).
+derived-требования/тесты (§14).
 
 ```mermaid
 sequenceDiagram
@@ -163,8 +163,8 @@ sequenceDiagram
 - **Commit** = `(parent, changes, author, ts, signature)`; адресация по контенту.
 - **Tree** — снапшот модели (узлы/рёбра/аспекты) → хэш; дедупликация.
 - **Ветки/merge**, **семантический diff**, **as-of** запросы, **restore**,
-  **branch-from** (§16.3).
-- **Пины** — запуск/срез фиксирует commit; метки (§15) ссылаются на commit.
+  **branch-from** (§12).
+- **Пины** — запуск/срез фиксирует commit; метки (§11) ссылаются на commit.
 - **GC** — сборка недостижимых объектов.
 
 ## 8. Подсистема RAG
@@ -186,7 +186,7 @@ graph LR
   (элемент + срез/проекция).
 - **Retrieval**: гибрид + обход графа + фильтры (версия, проект, аспект).
 - **Requirement linking**: извлечение → кандидаты связей → ревью → подтверждённые
-  связи с **провенансом** (§17.3).
+  связи с **провенансом** (§13).
 - **Grounding**: ответы с цитатами; утверждение из документа без опоры в модели
   помечается как отклонение.
 
@@ -196,7 +196,7 @@ graph LR
   ключ в контейнер не попадает.
 - **Изоляция песочницы**: лимиты cpu/mem/pids/time, `--read-only`, cap-drop,
   сетевой доступ только к шлюзу.
-- **Метки** подписываются хостом (§15); агент недоверенный — все артефакты через gate.
+- **Метки** подписываются хостом (§11); агент недоверенный — все артефакты через gate.
 - **Права**: RBAC на редактирование (владение элементами/аспектами), аудит.
 
 ## 10. Развёртывание
@@ -246,15 +246,18 @@ graph LR
 
 | Раздел `Concept.md` | Контейнеры/компоненты |
 |---|---|
-| §1–§2 топология/метамодель | Model Store, Metamodel Registry |
-| §3 поверхности, §8 окна | Web UI, Projection Engine |
-| §4 зум C4, §12 агрегация | Projection Engine, Layout |
-| §5 требования | Registry, Document Ingestion, RAG |
+| §0–§2 идея, граф, субграфы | Model Store, Metamodel Registry |
+| §3 каркас/уровни, §5 агрегация | Projection Engine, Layout |
+| §4 аспекты, §15 аспектный UI | Web UI (вкладки), Projection Engine |
 | §6 срезы | Projection Engine (Slice builder), API |
-| §7 строгость, §14.4 инварианты | Validator / Constraint Engine |
-| §11 федерация | Registry (GCR), Validator, RAG |
-| §13 аспекты, §16 аспектный UI | Web UI (вкладки), Projection Engine |
-| §14 редактирование/impact | Validator (transactions, impact), API |
-| §15 метки | Artifact/CI (issuer/verifier) |
-| §16 версионность/time-travel | Model Store (Version Store), Web UI (timeline) |
-| §17 RAG | RAG/Index, Document Ingestion, Registry |
+| §7 требования | Registry, Document Ingestion, RAG |
+| §8 строгость/инварианты | Validator / Constraint Engine |
+| §9 реконструкция | Sandbox Runtime, Projection Engine |
+| §10 редактирование/impact | Validator (transactions, impact), API |
+| §11 генерация/метки | Artifact/CI (issuer/verifier) |
+| §12 версионность/time-travel | Model Store (Version Store), Web UI (timeline) |
+| §13 RAG | RAG/Index, Document Ingestion, Registry |
+| §14 федерация | Registry (GCR), Validator, RAG |
+| §15 поверхности/окна | Web UI |
+| §16 техконтур | все контейнеры |
+| §17 гипотеза/ограничения | — (сквозной) |
