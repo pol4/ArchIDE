@@ -1,0 +1,8 @@
+{
+  "name": "archide-e2e-browser",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "puppeteer-core": "^25.0.0"
+  }
+}

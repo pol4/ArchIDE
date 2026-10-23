@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+"""Stub `docker` for deterministic e2e tests (no real Docker needed).
+
+Supports the subset used by ArchIDE:
+  docker volume create|inspect|rm <name>
+  docker run -d --name N --add-host ... [-v V:M] [-e K=V] <image>
+  docker logs N
+  docker rm -f N
+
+The "container" runs `python -m agent.sandbox` on the host with the given env.
+If $STUB_STATE/slow exists, `run` sleeps a few seconds first (to test cancel).
+"""
+from __future__ import annotations
+
+import json
+import os
+import pathlib
+import signal
+import subprocess
+import sys
+import time
+
+STATE = pathlib.Path(os.environ.get("STUB_STATE", "/tmp/archide-stub"))
+STATE.mkdir(parents=True, exist_ok=True)
+PROJECT = os.environ.get("FAKE_PROJECT", os.getcwd())
+
+
+def _run(args: list[str]) -> int:
+    name = None
+    env: dict[str, str] = {}
+    i = 1
+    while i < len(args):
+        a = args[i]
+        if a == "--name":
+            name = args[i + 1]; i += 2
+        elif a == "-e":
+            k, _, v = args[i + 1].partition("="); env[k] = v; i += 2
+        elif a == "-v":
+            i += 2
+        elif a in ("-d",):
+            i += 1
+        elif a in ("--add-host", "-p"):
+            i += 2
+        else:
+            i += 1
+
+    if (STATE / "slow").exists():
+        time.sleep(3)
+
+    e = dict(os.environ)
+    e.update(env)
+    e["ARCHIDE_WORK"] = str(STATE / "work" / str(name))
+    for k in list(e):
+        if k.startswith("ARCHIDE_") and "/agent-data" in e[k]:
+            e[k] = e[k].replace("/agent-data", str(STATE / "vol"))
+
+    log = STATE / f"{name}.log"
+    fh = open(log, "wb")
+    proc = subprocess.Popen([sys.executable, "-m", "agent.sandbox"], env=e, cwd=PROJECT,
+                            stdout=fh, stderr=subprocess.STDOUT)
+    (STATE / f"{name}.json").write_text(json.dumps({"pid": proc.pid, "log": str(log)}))
+    print("stubcontainer")
+    return 0
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    if not args:
+        return 2
+    cmd = args[0]
+    if cmd == "volume":
+        if len(args) >= 3 and args[1] == "inspect":
+            name = args[2]
+            print(json.dumps([{"Name": name, "Driver": "local",
+                               "Mountpoint": f"/var/lib/docker/volumes/{name}/_data",
+                               "CreatedAt": "2026-01-01T00:00:00Z"}]))
+        return 0
+    if cmd == "run":
+        return _run(args)
+    if cmd == "logs":
+        meta = STATE / f"{args[-1]}.json"
+        if meta.exists():
+            sys.stdout.write(pathlib.Path(json.loads(meta.read_text())["log"]).read_text())
+        return 0
+    if cmd == "rm":
+        meta = STATE / f"{args[-1]}.json"
+        if meta.exists():
+            try:
+                os.kill(json.loads(meta.read_text())["pid"], signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            meta.unlink()
+        return 0
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

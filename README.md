@@ -29,7 +29,7 @@
 - **Строгость машинная, а не дисциплинарная.** Закрытая метамодель + валидатор +
   цикл доработки; неподделываемые метки трассируемости (см. `Concept.md` §11).
 
-Подробно: [`Concept.md`](Concept.md) · Архитектура системы: [`ARCHITECTURE.md`](ARCHITECTURE.md) · План: [`ROADMAP.md`](ROADMAP.md).
+Подробно: [`Concept.md`](Concept.md) · Архитектура системы: [`ARCHITECTURE.md`](ARCHITECTURE.md) · Сценарии: [`SCENARIOS.md`](SCENARIOS.md) · План: [`ROADMAP.md`](ROADMAP.md).
 
 ## Скриншоты
 
@@ -86,6 +86,18 @@ docker build -t archide-kilo:latest agents/kilo/   # опционально: Kil
 Демо UI без сервера: откройте `archide-poc/frontend/index.html?demo=1`
 (`&mode=code|docs`, `&focus=<node-id>`).
 
+## Тесты (e2e)
+
+Сквозные тесты сценариев (`SCENARIOS.md`) в двух режимах — **API** и **браузер**
+(headless Chrome, реальные действия пользователя), детерминированно (mock/local +
+стаб-docker, без реального Docker и LLM):
+
+```bash
+bash tests/run_e2e.sh      # API + браузер; печатает E2E RESULT: PASS|FAIL
+```
+
+После каждой достаточно крупной доработки e2e обязателен (см. [`AGENTS.md`](AGENTS.md)).
+
 ## Дорожная карта (кратко)
 
 `Ф0` PoC (среда агентов, частично) → `Ф1` продуктизация песочницы → `Ф2`
@@ -101,7 +113,10 @@ docker build -t archide-kilo:latest agents/kilo/   # опционально: Kil
 README.md            стартовая страница (эта)
 Concept.md           концепция (система субграфов: каркас, аспекты, версии, RAG, метки)
 ARCHITECTURE.md      архитектура системы целиком
+SCENARIOS.md         основные сценарии работы
 ROADMAP.md           дорожная карта
+AGENTS.md            обязательные правила для агента (e2e, тесты, согласование)
+tests/               сквозные тесты (API + браузер) + оркестратор run_e2e.sh
 docs/screenshots/    скриншоты UI
 archide-poc/         рабочий PoC (сервер, агенты, UI)
   server.py          stdlib HTTP: UI + API + sandbox + LLM-шлюз
