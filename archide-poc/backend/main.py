@@ -25,7 +25,7 @@ class ReconstructRequest(BaseModel):
 
 @app.get("/api/agents")
 def list_agents() -> dict:
-    return {"agents": agents.list_agents()}
+    return {"agents": agents.list_agents_with_limits(config_mod.load_config())}
 
 
 @app.get("/api/config")

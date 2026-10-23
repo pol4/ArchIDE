@@ -106,6 +106,9 @@ async function runLive(browser) {
   // wait until the app has initialized (agent list populated)
   await page.waitForFunction(() => document.querySelectorAll('#agent option').length > 0, { timeout: 15000 });
 
+  const agentTitles = await page.$$eval('#agent option', (els) => els.map((e) => e.title));
+  check('Ф1.1 agent manifest limits shown', agentTitles.some((t) => /limits:/.test(t)), JSON.stringify(agentTitles).slice(0, 140));
+
   // S1 - fill settings like a user
   await page.$eval('#repo', (el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }, REPO);
   await page.select('#mode', 'mock');

@@ -170,6 +170,26 @@ def main() -> int:
     status, reset = req("POST", "/api/volume/reset")
     check("S6 volume reset ok", status == 200 and reset.get("ok") is True, str(reset))
 
+    # Ф1.1/Ф1.2 - agent manifest + sandbox limits
+    entries = agents.get("agents", [])
+    check("Ф1.1 registry entries carry kind+limits",
+          len(entries) >= 2 and all("kind" in a and "limits" in a for a in entries),
+          str([(a.get("id"), a.get("kind")) for a in entries]))
+    if DATA:
+        check("Ф1.1 agent manifest created on disk", (pathlib.Path(DATA) / "agents.json").exists())
+
+    if STUB_STATE:
+        argv_log = pathlib.Path(STUB_STATE) / "argv.log"
+        argv_log.unlink(missing_ok=True)
+        put_config({"agent": {"runner": "docker"}, "llm": {"mode": "mock"}, "context": {"compare_docs": False}})
+        snap, _ = run_and_wait(REPO, "builtin", timeout=60)
+        argv = argv_log.read_text() if argv_log.exists() else ""
+        check("Ф1.2 sandbox limits applied to docker run",
+              "--pids-limit 256" in argv and "--security-opt no-new-privileges" in argv,
+              argv[:200])
+        check("Ф1.2 run meta records limits", bool((snap.get("meta") or {}).get("limits")),
+              str((snap.get("meta") or {}).get("limits")))
+
     # gateway auth
     status, _ = req("POST", "/llm/v1/chat/completions", {"model": "m", "messages": []})
     check("gateway rejects missing token (401)", status == 401, str(status))

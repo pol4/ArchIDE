@@ -263,7 +263,8 @@ async function init() {
     const opt = document.createElement("option");
     opt.value = a.id;
     opt.textContent = a.name;
-    opt.title = a.description || "";
+    const lim = a.limits && Object.keys(a.limits).length ? ` | limits: ${JSON.stringify(a.limits)}` : "";
+    opt.title = (a.description || "") + lim;
     sel.appendChild(opt);
   });
 

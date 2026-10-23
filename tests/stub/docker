@@ -67,6 +67,8 @@ def main() -> int:
     args = sys.argv[1:]
     if not args:
         return 2
+    with (STATE / "argv.log").open("a", encoding="utf-8") as fh:
+        fh.write("docker " + " ".join(args) + "\n")
     cmd = args[0]
     if cmd == "volume":
         if len(args) >= 3 and args[1] == "inspect":

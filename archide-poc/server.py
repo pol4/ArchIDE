@@ -94,7 +94,7 @@ class Handler(BaseHTTPRequestHandler):
         route, query = parsed.path, self._query(parsed.query)
 
         if route == "/api/agents":
-            return self._json(200, {"agents": agents.list_agents()})
+            return self._json(200, {"agents": agents.list_agents_with_limits(config_mod.load_config())})
         if route == "/api/config":
             return self._json(200, config_mod.load_config())
         if route == "/api/volume":
@@ -303,6 +303,7 @@ def main() -> None:
     port = int(os.environ.get("ARCHIDE_PORT", "8000"))
     runtime.PUBLIC_BASE = os.environ.get("ARCHIDE_PUBLIC_URL") or f"http://host.docker.internal:{port}"
     gateway.ensure_token(config_mod.load_config())  # ensure a gateway token exists
+    agents.ensure_manifest()  # ensure the agent plugin manifest exists
 
     httpd = ThreadingHTTPServer((host, port), Handler)
     print(f"ArchIDE PoC -> http://{host}:{port}  (sandbox/gateway base: {runtime.PUBLIC_BASE})")

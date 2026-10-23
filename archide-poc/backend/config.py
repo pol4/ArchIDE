@@ -13,6 +13,7 @@ _BASE = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("ARCHIDE_DATA", _BASE / "data"))
 CONFIG_PATH = DATA_DIR / "config.json"
 MODELS_DIR = DATA_DIR / "models"
+AGENTS_PATH = DATA_DIR / "agents.json"
 _lock = Lock()
 
 DEFAULT_CONFIG = {
@@ -39,6 +40,16 @@ DEFAULT_CONFIG = {
         "volume": "archide-agent-data",
         "volume_mount": "/agent-data",
         "volume_enabled": True,
+        # default sandbox limits for every agent (per-agent overrides live in
+        # data/agents.json -> agent.limits)
+        "limits": {
+            "memory": "",
+            "cpus": "",
+            "pids": 256,
+            "read_only": False,
+            "cap_drop_all": False,
+            "no_new_privileges": True,
+        },
     },
     "gateway": {
         # ArchIDE LLM gateway: agents authenticate with this token; the gateway

@@ -185,6 +185,25 @@ def _image(agent: dict, cfg: dict) -> str:
     return overrides.get(agent["id"]) or agent["image"]
 
 
+def _limit_args(limits: dict) -> list[list[str]]:
+    """Translate sandbox limits into `docker run` flags (Ф1.2)."""
+    args: list[list[str]] = []
+    if limits.get("memory"):
+        args.append(["--memory", str(limits["memory"])])
+    if limits.get("cpus"):
+        args.append(["--cpus", str(limits["cpus"])])
+    if limits.get("pids"):
+        args.append(["--pids-limit", str(int(limits["pids"]))])
+    if limits.get("read_only"):
+        args.append(["--read-only"])
+        args.append(["--tmpfs", "/tmp"])
+    if limits.get("cap_drop_all"):
+        args.append(["--cap-drop", "ALL"])
+    if limits.get("no_new_privileges"):
+        args.append(["--security-opt", "no-new-privileges"])
+    return args
+
+
 def _run_docker(agent, prompt, constraints, repo_name, files, cfg, run, emit) -> tuple[dict, dict]:
     if not runtime.PUBLIC_BASE:
         raise RuntimeError("server public base URL is not set; start via server.py")
@@ -222,9 +241,14 @@ def _run_docker(agent, prompt, constraints, repo_name, files, cfg, run, emit) ->
         "KILO_MODEL": f"archide/{llm.get('model', '')}",
     }
 
+    limits = dict(agent_cfg.get("limits", {}) or {})
+    limits.update(agent.get("limits", {}) or {})
+
     name = "archide-sbx-" + uuid.uuid4().hex[:12]
     cmd = ["docker", "run", "-d", "--name", name,
            "--add-host", "host.docker.internal:host-gateway"]
+    for flag in _limit_args(limits):
+        cmd += flag
     if volume_enabled and volume:
         # a named volume: shared by all agents, no host file-sharing needed
         subprocess.run(["docker", "volume", "create", volume], capture_output=True, text=True)
@@ -271,7 +295,7 @@ def _run_docker(agent, prompt, constraints, repo_name, files, cfg, run, emit) ->
         if not graph:
             raise RuntimeError(f"agent returned no graph\n{logs[-1500:]}")
         emit("status", "graph received from the agent")
-        return graph, {"container": name, "job": job_id}
+        return graph, {"container": name, "job": job_id, "limits": limits}
     finally:
         subprocess.run(["docker", "rm", "-f", name], capture_output=True, text=True)
 
