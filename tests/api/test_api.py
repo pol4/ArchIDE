@@ -517,6 +517,52 @@ def main() -> int:
     st, r = req("POST", "/api/models/edit2/impact", {"node": "component://m2/a"})
     check("Ф4.3 impact analysis lists affected nodes", st == 200 and "component://m2/b" in (r.get("impacted") or []), str(r)[:160])
 
+    # Ф4.4 - declarative constraints
+    cm = {"nodes": [
+        {"id": "sys://cm", "type": "System", "parent": None, "evidence": ["a"]},
+        {"id": "component://cm/a", "type": "Component", "parent": "sys://cm", "evidence": ["a"]},
+        {"id": "component://cm/b", "type": "Component", "parent": "sys://cm", "evidence": ["a"]},
+    ], "edges": [{"source": "component://cm/a", "target": "component://cm/b", "type": "depends_on"}]}
+    req("PUT", "/api/models/cmodel", {"graph": cm})
+    st, r = req("PUT", "/api/models/cmodel/constraints", {"constraints": [
+        {"kind": "forbid_edge", "edge_type": "depends_on", "from": "Component", "to": "Component"},
+        {"kind": "require_evidence", "type": "Component"},
+    ]})
+    check("Ф4.4 constraints saved", st == 200 and r.get("ok") is True, str(r)[:160])
+    _, lst = req("GET", "/api/models/cmodel/constraints")
+    check("Ф4.4 constraints listed", len(lst.get("constraints") or []) == 2, str(lst)[:160])
+    st, v = req("GET", "/api/models/cmodel/validate")
+    viol = v.get("violations") or []
+    check("Ф4.4 forbid_edge violation detected",
+          st == 200 and any((x.get("constraint") or {}).get("kind") == "forbid_edge" for x in viol), str(viol[:2])[:200])
+    st, r = req("POST", "/api/models/cmodel/edit",
+                {"operations": [{"op": "add_node", "node": {"id": "component://cm/c", "type": "Component", "parent": "sys://cm"}}]})
+    check("Ф4.4 edit gate blocks a constraint violation", st == 422 and r.get("ok") is False, str(r)[:160])
+
+    # Ф4.5 - ownership + optimistic concurrency
+    om = {"nodes": [
+        {"id": "sys://o", "type": "System", "parent": None, "evidence": ["a"]},
+        {"id": "component://o/a", "type": "Component", "parent": "sys://o", "evidence": ["a"], "owner": "alice"},
+    ], "edges": []}
+    req("PUT", "/api/models/omodel", {"graph": om})
+    st, r = req("POST", "/api/models/omodel/edit",
+                {"user": "bob", "operations": [{"op": "update_node", "id": "component://o/a", "patch": {"name": "X"}}]})
+    check("Ф4.5 ownership blocks foreign edits (403)", st == 403, str(r)[:140])
+    st, r = req("POST", "/api/models/omodel/edit",
+                {"user": "alice", "operations": [{"op": "update_node", "id": "component://o/a", "patch": {"name": "X"}}]})
+    check("Ф4.5 owner can edit", st == 200 and r.get("ok") is True, str(r)[:140])
+    _, md = req("GET", "/api/models/omodel")
+    from backend import model_store as _ms  # noqa: E402
+    cur_hash = _ms.model_hash(md)
+    st, r = req("POST", "/api/models/omodel/edit",
+                {"user": "alice", "expected_hash": "deadbeefdeadbeef",
+                 "operations": [{"op": "update_node", "id": "component://o/a", "patch": {"name": "Y"}}]})
+    check("Ф4.5 optimistic concurrency conflict (409)", st == 409, str(r)[:140])
+    st, r = req("POST", "/api/models/omodel/edit",
+                {"user": "alice", "expected_hash": cur_hash,
+                 "operations": [{"op": "update_node", "id": "component://o/a", "patch": {"name": "Y"}}]})
+    check("Ф4.5 matching hash allows the edit", st == 200 and r.get("ok") is True, str(r)[:140])
+
     # restore a sane config
     put_config({"llm": {"mode": "mock"}, "agent": {"runner": "local"}, "context": {"compare_docs": False}})
 

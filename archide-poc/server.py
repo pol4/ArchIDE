@@ -20,6 +20,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from backend import agents, analysis, gateway, maintenance, metamodel, model_store, runtime, sandbox
+from backend import constraints as constraints_mod
 from backend import slice as slice_mod
 from backend.extract import extract_aspects
 from backend import docs as docs_mod
@@ -38,7 +39,7 @@ FRONTEND = (BASE / "frontend").resolve()
 _SANDBOX_RE = re.compile(r"^/sandbox/(repo|meta|event|result|validate)/([0-9a-f]+)$")
 _RUN_RE = re.compile(r"^/api/runs/([0-9a-f]+)(/cancel)?$")
 _MODEL_RE = re.compile(r"^/api/models(?:/([A-Za-z0-9._-]+))?$")
-_MODEL_SUB_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(aggregations|coverage|slice)$")
+_MODEL_SUB_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(aggregations|coverage|slice|constraints|validate)$")
 _DOC_RE = re.compile(r"^/api/docs/([0-9a-f]+)(/requirements)?$")
 _EDIT_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(edit|impact)$")
 
@@ -129,13 +130,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, payload)
 
         match = _MODEL_SUB_RE.match(route)
-        if match and match.group(2) in ("aggregations", "coverage"):
+        if match and match.group(2) in ("aggregations", "coverage", "constraints", "validate"):
             model = model_store.load_model(config_mod.MODELS_DIR, match.group(1))
             if model is None:
                 return self._json(404, {"detail": "unknown model"})
             view = match.group(2)
-            data = analysis.aggregations(model) if view == "aggregations" else analysis.coverage(model)
-            return self._json(200, {view: data})
+            if view == "aggregations":
+                return self._json(200, {"aggregations": analysis.aggregations(model)})
+            if view == "coverage":
+                return self._json(200, {"coverage": analysis.coverage(model)})
+            if view == "constraints":
+                return self._json(200, {"constraints": model.get("constraints", [])})
+            return self._json(200, {"validation": validate_graph(model), "violations": constraints_mod.evaluate(model)})
 
         match = _MODEL_RE.match(route)
         if match:
@@ -174,6 +180,22 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(400, {"detail": f"invalid JSON: {exc}"})
             return self._json(200, config_mod.save_config(patch))
 
+        match_sub = _MODEL_SUB_RE.match(route)
+        if match_sub and match_sub.group(2) == "constraints":
+            model = model_store.load_model(config_mod.MODELS_DIR, match_sub.group(1))
+            if model is None:
+                return self._json(404, {"detail": "unknown model"})
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            model["constraints"] = constraints_mod.normalize(body.get("constraints"))
+            validation = validate_graph(model)
+            if not validation["ok"]:
+                return self._json(422, {"ok": False, "validation": validation})
+            _, digest = model_store.save_model(model, config_mod.MODELS_DIR, match_sub.group(1))
+            return self._json(200, {"ok": True, "constraints": model["constraints"], "hash": digest})
+
         match = _MODEL_RE.match(route)
         if match and match.group(1):
             try:
@@ -211,11 +233,25 @@ class Handler(BaseHTTPRequestHandler):
             if match_edit.group(2) == "impact":
                 return self._json(200, {"impacted": edit_mod.impacted(model, str(body.get("node") or ""))})
             operations = body.get("operations") or []
+            editor = str(body.get("user") or "default")
+            expected = body.get("expected_hash")
+            if expected and expected != model_store.model_hash(model):
+                return self._json(409, {"ok": False, "error": "model changed (hash mismatch)"})
+            node_by_id = {n["id"]: n for n in model.get("nodes", []) if isinstance(n, dict) and n.get("id")}
+            for op in operations:
+                target = op.get("id") if op.get("op") in ("update_node", "remove_node") else None
+                if not target and isinstance(op.get("node"), dict):
+                    target = op["node"].get("id")
+                owner = (node_by_id.get(target) or {}).get("owner") if target else None
+                if owner and owner != editor and editor != "admin":
+                    return self._json(403, {"ok": False, "error": f"{editor} is not the owner of {target}"})
             try:
                 new_model, applied = edit_mod.apply_operations(model, operations, auto_repair=bool(body.get("auto_repair")))
             except ValueError as exc:
                 return self._json(422, {"ok": False, "error": str(exc)})
             validation = validate_graph(new_model)
+            violations = constraints_mod.evaluate(new_model)
+            constraint_errors = [v for v in violations if v.get("severity", "error") == "error"]
             touched = set()
             for op in operations:
                 for key in ("id", "source", "target"):
@@ -227,12 +263,12 @@ class Handler(BaseHTTPRequestHandler):
                     touched.add(op["edge"].get("source"))
                     touched.add(op["edge"].get("target"))
             impacted = sorted({n for t0 in touched if t0 for n in ([t0] + edit_mod.impacted(model, t0))})
-            if not validation["ok"]:
-                return self._json(422, {"ok": False, "validation": validation, "model": new_model, "impacted": impacted})
+            if not validation["ok"] or (constraint_errors and not body.get("waive_constraints")):
+                return self._json(422, {"ok": False, "validation": validation, "violations": violations, "model": new_model, "impacted": impacted})
             if body.get("dry_run"):
-                return self._json(200, {"ok": True, "validation": validation, "model": new_model, "impacted": impacted, "dry_run": True})
+                return self._json(200, {"ok": True, "validation": validation, "violations": violations, "model": new_model, "impacted": impacted, "dry_run": True})
             _, digest = model_store.save_model(new_model, config_mod.MODELS_DIR, match_edit.group(1))
-            return self._json(200, {"ok": True, "validation": validation, "model": new_model, "impacted": impacted, "hash": digest})
+            return self._json(200, {"ok": True, "validation": validation, "violations": violations, "model": new_model, "impacted": impacted, "hash": digest})
         if route == "/api/docs":
             try:
                 body = self._read_json()

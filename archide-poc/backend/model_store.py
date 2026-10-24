@@ -10,6 +10,8 @@ import json
 import pathlib
 import re
 
+from .constraints import normalize as normalize_constraints
+
 
 def normalize(model: dict) -> dict:
     nodes = []
@@ -24,7 +26,11 @@ def normalize(model: dict) -> dict:
             edges.append(dict(edge))
     edges.sort(key=lambda e: (str(e.get("type", "")), str(e.get("source", "")), str(e.get("target", ""))))
 
-    return {"nodes": nodes, "edges": edges}
+    out = {"nodes": nodes, "edges": edges}
+    constraints = model.get("constraints")
+    if constraints:
+        out["constraints"] = normalize_constraints(constraints)
+    return out
 
 
 def canonical(model: dict) -> str:

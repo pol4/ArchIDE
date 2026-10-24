@@ -86,6 +86,8 @@ def apply_operations(graph: dict, operations: list, auto_repair: bool = False):
     edges = [e for e in edges if e.get("source") not in to_remove and e.get("target") not in to_remove]
 
     result = {"nodes": list(nodes.values()), "edges": edges}
+    if graph.get("constraints"):
+        result["constraints"] = graph["constraints"]
     if auto_repair:
         known = set(nodes)
         for node in result["nodes"]:
