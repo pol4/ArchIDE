@@ -582,6 +582,16 @@ def main() -> int:
     check("Ф4.10 reconciler reduces divergences",
           st == 200 and conv.get("before", 0) >= 1 and conv.get("after", 99) < conv.get("before", 0), str(conv))
 
+    # Ф4.8 - custom aspects
+    st, r = req("POST", "/api/metamodel/aspects",
+                {"name": "compliance", "node_types": ["Policy", "Control"], "edge_types": ["governs"]})
+    check("Ф4.8 custom aspect registered", st == 200 and "compliance" in (r.get("aspects") or {}),
+          str(list((r.get("aspects") or {}).keys()))[:160])
+    _, mm2 = req("GET", "/api/metamodel")
+    check("Ф4.8 custom aspect in registry and new type accepted",
+          "compliance" in (mm2.get("aspects") or {}) and "Control" in (mm2.get("node_types") or []),
+          str((mm2.get("aspects") or {}).get("compliance")))
+
     # restore a sane config
     put_config({"llm": {"mode": "mock"}, "agent": {"runner": "local"}, "context": {"compare_docs": False}})
 

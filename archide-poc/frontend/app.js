@@ -518,6 +518,16 @@ function setCommTab(name) {
   });
 }
 
+function parseIntent(text) {
+  const add = text.match(/^add\s+(\w+)\s+(\S+)(?:\s+under\s+(\S+))?$/i);
+  if (add) return { kind: "add", type: add[1], id: add[2], parent: add[3] || null };
+  const rem = text.match(/^remove\s+(\S+)$/i);
+  if (rem) return { kind: "remove", id: rem[1] };
+  if (/^review\b/i.test(text)) return { kind: "review" };
+  if (/^fix\b/i.test(text)) return { kind: "fix" };
+  return { kind: "rag" };
+}
+
 async function sendPrompt(text) {
   const value = String(text || "").trim();
   if (!value) return;
@@ -526,6 +536,63 @@ async function sendPrompt(text) {
   state.promptHistory.push(value);
   state.promptIndex = state.promptHistory.length;
   $("prompt_input").value = "";
+
+  const intent = parseIntent(value);
+  const model = ($("edit_model").value || "").trim();
+
+  if (intent.kind === "add" || intent.kind === "remove") {
+    if (!model) {
+      appendEvents([{ ts: now(), type: "question", text: "Which model? Set 'Model name' in the Edit model panel." }]);
+      return;
+    }
+    const operations = intent.kind === "add"
+      ? [{ op: "add_node", node: { id: intent.id, type: intent.type, parent: intent.parent, evidence: [] } }]
+      : [{ op: "remove_node", id: intent.id }];
+    appendEvents([{ ts: now(), type: "reasoning", text: `proposed: ${JSON.stringify(operations)}` }]);
+    try {
+      const res = await api(`/api/models/${encodeURIComponent(model)}/edit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ operations, auto_repair: true }),
+      });
+      appendEvents([{ ts: now(), type: "status", text: `applied \u00b7 nodes: ${(res.model.nodes || []).length} \u00b7 impacted: ${(res.impacted || []).length}` }]);
+      state.graph = res.model;
+      state.fullGraph = res.model;
+      state.focus = null;
+      render();
+    } catch (e) {
+      appendEvents([{ ts: now(), type: "error", text: "edit rejected: " + e.message }]);
+    }
+    return;
+  }
+
+  if (intent.kind === "review" || intent.kind === "fix") {
+    if (!model) {
+      appendEvents([{ ts: now(), type: "question", text: "Which model? Set 'Model name' in the Edit model panel." }]);
+      return;
+    }
+    try {
+      const res = await api(`/api/models/${encodeURIComponent(model)}/${intent.kind === "fix" ? "reconcile" : "review"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apply: intent.kind === "fix" }),
+      });
+      const issues = res.divergences || res.issues || [];
+      appendEvents([{ ts: now(), type: "reasoning", text: `${issues.length} issue(s), ${(res.proposals || []).length} proposal(s)` }]);
+      if (intent.kind === "fix" && res.convergence) {
+        appendEvents([{ ts: now(), type: "status", text: `convergence ${res.convergence.before} -> ${res.convergence.after}` }]);
+      }
+      if (intent.kind === "fix" && res.model) {
+        state.graph = res.model;
+        state.fullGraph = res.model;
+        render();
+      }
+    } catch (e) {
+      appendEvents([{ ts: now(), type: "error", text: "review failed: " + e.message }]);
+    }
+    return;
+  }
+
   try {
     const res = await api("/api/rag/search", {
       method: "POST",

@@ -6,6 +6,11 @@ Defines the closed vocabularies (node/edge types), the aspect schemas
 """
 from __future__ import annotations
 
+import json
+import re
+
+from . import config as config_mod
+
 NODE_TYPES = {
     # structure (C4 backbone)
     "System", "Container", "Component", "Module", "Actor", "ExternalSystem",
@@ -89,6 +94,51 @@ ASPECTS: dict[str, dict[str, set[str]]] = {
                        "decided_by", "assigned_to", "verifies"},
     },
 }
+
+_BUILTIN_ASPECTS = set(ASPECTS)
+_CUSTOM_PATH = config_mod.DATA_DIR / "aspects.json"
+
+
+def _load_custom() -> dict:
+    if not _CUSTOM_PATH.exists():
+        return {}
+    try:
+        data = json.loads(_CUSTOM_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _apply_custom(name: str, spec: dict) -> None:
+    node_types = set(spec.get("node_types") or [])
+    edge_types = set(spec.get("edge_types") or [])
+    ASPECTS[name] = {"node_types": node_types, "edge_types": edge_types}
+    NODE_TYPES.update(node_types)
+    EDGE_TYPES.update(edge_types)
+
+
+for _name, _spec in _load_custom().items():
+    if isinstance(_spec, dict):
+        _apply_custom(_name, _spec)
+
+
+def register_aspect(name, node_types, edge_types) -> dict:
+    """Register a custom aspect (Ф4.8): new grouping and/or new node/edge types."""
+    clean = re.sub(r"[^a-zA-Z0-9_-]+", "-", str(name or "")).strip("-")
+    if not clean:
+        raise ValueError("aspect name is required")
+    _apply_custom(clean, {"node_types": node_types, "edge_types": edge_types})
+    custom = {
+        key: {"node_types": sorted(spec["node_types"]), "edge_types": sorted(spec["edge_types"])}
+        for key, spec in ASPECTS.items() if key not in _BUILTIN_ASPECTS
+    }
+    try:
+        config_mod.DATA_DIR.mkdir(parents=True, exist_ok=True)
+        _CUSTOM_PATH.write_text(json.dumps(custom, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError:
+        pass
+    return registry()
+
 
 # Anchor rules: which backbone types an aspect node may attach to.
 ANCHORS: dict[str, set[str]] = {

@@ -220,6 +220,17 @@ class Handler(BaseHTTPRequestHandler):
 
         if route == "/api/reconstruct":
             return self._reconstruct()
+        if route == "/api/metamodel/aspects":
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            try:
+                registry = metamodel.register_aspect(body.get("name"), body.get("node_types"), body.get("edge_types"))
+            except ValueError as exc:
+                return self._json(400, {"detail": str(exc)})
+            registry["registry_errors"] = registry_errors()
+            return self._json(200, registry)
         if route == "/api/slice":
             return self._slice(None)
         match_edit = _EDIT_RE.match(route)

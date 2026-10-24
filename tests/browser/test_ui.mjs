@@ -412,6 +412,55 @@ async function runEdit(browser) {
   const info2 = await page.$eval('#edit-info', (el) => el.textContent);
   check('Ф4.6 remove node via UI', /ok/.test(info2) && /nodes:\s*2/.test(info2), info2);
 
+  await fetch(`${BASE}/api/metamodel/aspects`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'compliance', node_types: ['Policy', 'Control'], edge_types: ['governs'] }),
+  });
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelectorAll('#agent option').length > 0, { timeout: 15000 });
+  const chips = await page.$$eval('#legend .chip', (els) => els.map((e) => e.textContent.trim()));
+  check('Ф4.8 custom aspect appears in UI', chips.includes('compliance'), JSON.stringify(chips));
+
+  await page.close();
+}
+
+async function runChatEdit(browser) {
+  await putConfig({ llm: { mode: 'mock' }, agent: { runner: 'local' }, context: { compare_docs: false } });
+  const seed = {
+    nodes: [
+      { id: 'sys://ce', type: 'System', parent: null, evidence: ['a'] },
+      { id: 'container://ce/c', type: 'Container', parent: 'sys://ce', evidence: ['a'] },
+    ],
+    edges: [],
+  };
+  await fetch(`${BASE}/api/models/chatedit`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ graph: seed }),
+  });
+
+  const page = await browser.newPage();
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+  await page.setViewport({ width: 1680, height: 1000 });
+  await page.goto(`${BASE}/`, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelectorAll('#agent option').length > 0, { timeout: 15000 });
+
+  const send = async (text) => {
+    await page.$eval('#prompt_input', (el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }, text);
+    await page.click('#prompt-send');
+    await sleep(500);
+  };
+
+  await page.$eval('#edit_model', (el) => { el.value = 'chatedit'; });
+  await send('add Component component://ce/new under container://ce/c');
+  const log = await page.$eval('#activity', (el) => el.textContent);
+  check('Ф4.7 chat applies an edit intent', /applied/.test(log), log.slice(-160));
+  const stored = await (await fetch(`${BASE}/api/models/chatedit`)).json();
+  check('Ф4.7 edit persisted via chat', stored.nodes.some((n) => n.id === 'component://ce/new'), 'node not stored');
+
+  await page.$eval('#edit_model', (el) => { el.value = ''; });
+  await send('add Component component://ce/orphan');
+  const log2 = await page.$eval('#activity', (el) => el.textContent);
+  check('Ф4.7 agent asks a question when context is missing', (await page.$$eval('#activity .ev.question', (els) => els.length)) >= 1, log2.slice(-160));
+
   await page.close();
 }
 
@@ -483,6 +532,7 @@ async function runLive(browser) {
     await runPrompt(browser);
     await runPreview(browser);
     await runEdit(browser);
+    await runChatEdit(browser);
     await runLive(browser);
   } finally {
     await browser.close();
