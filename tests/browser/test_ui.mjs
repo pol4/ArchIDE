@@ -513,6 +513,42 @@ async function runVisualEdit(browser) {
   await page.close();
 }
 
+async function runSliceView(browser) {
+  await putConfig({ llm: { mode: 'mock' }, agent: { runner: 'local' }, context: { compare_docs: false } });
+  const seed = {
+    nodes: [
+      { id: 'sys://sv', type: 'System', name: 'sv', parent: null, evidence: ['a'] },
+      { id: 'container://sv/c', type: 'Container', name: 'c', parent: 'sys://sv', evidence: ['a'] },
+      { id: 'component://sv/a', type: 'Component', name: 'a', parent: 'container://sv/c', evidence: ['a'] },
+      { id: 'component://sv/b', type: 'Component', name: 'b', parent: 'container://sv/c', evidence: ['a'] },
+    ],
+    edges: [],
+  };
+  await fetch(`${BASE}/api/models/sv`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ graph: seed }),
+  });
+  const page = await browser.newPage();
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+  await page.setViewport({ width: 1680, height: 1000 });
+  await page.goto(`${BASE}/`, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelectorAll('#agent option').length > 0, { timeout: 15000 });
+
+  await page.$eval('#model_load', (el) => { el.value = 'sv'; });
+  await page.click('#model-load');
+  await sleep(400);
+  await clickNode(page, 'c');        // drill into container
+  await clickNode(page, 'a');        // select a component
+  await sleep(200);
+  await page.click('#node-focus');
+  await sleep(400);
+  const info = await page.$eval('#view-info', (el) => el.textContent);
+  check('Ф2.7 slice focused on the selected node (no manual id)', /slice:/.test(info), info);
+  await page.click('#view-reset');
+  await sleep(200);
+  check('Ф2.7 slice reset clears the view', (await page.$eval('#view-info', (el) => el.textContent)).trim() === '');
+  await page.close();
+}
+
 async function runLive(browser) {
   await putConfig({
     llm: { mode: 'mock', model: 'test-model' },
@@ -583,6 +619,7 @@ async function runLive(browser) {
     await runVisualEdit(browser);
     await runChatEdit(browser);
     await runGenerate(browser);
+    await runSliceView(browser);
     await runLive(browser);
   } finally {
     await browser.close();

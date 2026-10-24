@@ -104,8 +104,9 @@
 
       <section class="panel">
         <h2>5 · View (slice)</h2>
+        <div class="log">Bounded neighborhood of a node (ancestors/descendants). Select a node on the canvas and press <b>Focus</b>, or type a scope id.</div>
         <label class="field">
-          <span>Scope (node id)</span>
+          <span>Scope (node id, auto-filled from selection)</span>
           <input id="view_scope" type="text" placeholder="component://app/svc" />
         </label>
         <div class="row">
@@ -194,6 +195,7 @@
         <div id="node-actions" class="node-actions hidden">
           <input id="node-rename" type="text" placeholder="rename" />
           <button id="node-rename-apply" class="mini wide">Rename</button>
+          <button id="node-focus" class="mini wide" title="focus the view on this node">Focus</button>
           <button id="node-delete" class="mini wide danger">Delete</button>
         </div>
         <div id="windows" class="windows"></div>

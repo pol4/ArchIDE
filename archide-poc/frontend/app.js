@@ -382,6 +382,7 @@ function wireControls() {
   $("pop-create").addEventListener("click", createNodeFromPopover);
   $("pop-cancel").addEventListener("click", () => $("popover").classList.add("hidden"));
   $("node-delete").addEventListener("click", deleteSelectedNode);
+  $("node-focus").addEventListener("click", focusSelectedNode);
   $("node-rename-apply").addEventListener("click", renameSelectedNode);
   $("win-open").addEventListener("click", () => openAspectWindow($("win_aspect").value));
   document.querySelectorAll("#comm .tab").forEach((btn) => {
@@ -1026,6 +1027,12 @@ async function applySlice() {
   }
 }
 
+function focusSelectedNode() {
+  if (!state.selected) return;
+  $("view_scope").value = state.selected;
+  applySlice();
+}
+
 function resetSlice() {
   state.graph = state.fullGraph;
   state.focus = null;
@@ -1313,6 +1320,7 @@ function render() {
       actions.style.left = Math.max(8, Math.min(rect.width - 250, sx)) + "px";
       actions.style.top = Math.max(8, sy - 44) + "px";
       $("node-rename").value = ((state.byId && state.byId.get(state.selected)) || {}).name || "";
+      $("view_scope").value = state.selected;
       actions.classList.remove("hidden");
     } else {
       actions.classList.add("hidden");
