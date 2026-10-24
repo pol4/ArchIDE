@@ -224,7 +224,9 @@ async function runDocs(browser) {
   fs.writeFileSync(tmp, '- REQ-1: system must charge payments\n- REQ-2: refunds must be supported\n');
   await page.$eval('#doc_user', (el) => { el.value = 'e2e-user'; });
   await (await page.$('#doc_file')).uploadFile(tmp);
-  await sleep(600);
+  await sleep(400);
+  await page.click('#doc-confirm');
+  await sleep(400);
   const logText = await page.$eval('#activity', (el) => el.textContent);
   check('Ф7.1 document attached in the chat (into RAG)', /indexed .*reqs\.md/i.test(logText), logText.slice(0, 180));
 
@@ -271,7 +273,9 @@ async function runComm(browser) {
   fs.writeFileSync(tmp, '- REQ-1: refunds must be supported\n');
   await page.$eval('#doc_user', (el) => { el.value = 'comm-user'; });
   await (await page.$('#doc_file')).uploadFile(tmp);
-  await sleep(600);
+  await sleep(400);
+  await page.click('#doc-confirm');
+  await sleep(400);
 
   await page.$eval('#prompt_input', (el) => { el.value = 'refunds'; el.dispatchEvent(new Event('input', { bubbles: true })); });
   await page.click('#prompt-send');
@@ -333,6 +337,42 @@ async function runPrompt(browser) {
   await sleep(200);
   const h1 = await page.$eval('#prompt-form', (el) => el.getBoundingClientRect().height);
   check('prompt input top border is resizable', h1 > h0 + 20, `h0=${Math.round(h0)} h1=${Math.round(h1)}`);
+
+  await page.close();
+}
+
+async function runPreview(browser) {
+  const page = await browser.newPage();
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+  await page.setViewport({ width: 1680, height: 1000 });
+  await page.goto(`${BASE}/`, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelectorAll('#agent option').length > 0, { timeout: 15000 });
+
+  const tmp = path.join(os.tmpdir(), 'archide-e2e-prev.md');
+  fs.writeFileSync(tmp, '# Preview\n- REQ-1: hello world\n');
+  await page.$eval('#doc_user', (el) => { el.value = 'preview-user'; });
+  await (await page.$('#doc_file')).uploadFile(tmp);
+  await sleep(500);
+
+  const previewVisible = await page.$eval('#doc-preview', (el) => el.offsetParent !== null);
+  const previewText = await page.$eval('#doc-preview', (el) => el.textContent);
+  check('document preview shown before upload',
+    previewVisible && /prev\.md/.test(previewText) && /REQ-1/.test(previewText), previewText.slice(0, 160));
+
+  const logBefore = await page.$eval('#activity', (el) => el.textContent);
+  check('not ingested before confirmation', !/indexed .*prev\.md/i.test(logBefore), logBefore.slice(0, 120));
+
+  await page.click('#doc-confirm');
+  await sleep(500);
+  const logAfter = await page.$eval('#activity', (el) => el.textContent);
+  check('confirm uploads the document to RAG', /indexed .*prev\.md/i.test(logAfter), logAfter.slice(0, 160));
+  check('preview hidden after upload', await page.$eval('#doc-preview', (el) => el.offsetParent === null));
+
+  await (await page.$('#doc_file')).uploadFile(tmp);
+  await sleep(400);
+  await page.click('#doc-cancel');
+  await sleep(200);
+  check('cancel discards the preview', await page.$eval('#doc-preview', (el) => el.offsetParent === null));
 
   await page.close();
 }
@@ -403,6 +443,7 @@ async function runLive(browser) {
     await runDocs(browser);
     await runComm(browser);
     await runPrompt(browser);
+    await runPreview(browser);
     await runLive(browser);
   } finally {
     await browser.close();

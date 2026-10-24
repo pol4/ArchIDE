@@ -75,7 +75,7 @@ const state = {
   config: null, agents: [], runId: null, since: 0, poll: null, saveTimer: null,
   graph: null, fullGraph: null, focus: null, selected: null, byId: null, kids: null, rootId: null,
   sourceMode: "all", aspects: new Set(["structure"]), split: false, aspectB: "interface",
-  ragHits: [], promptHistory: [], promptIndex: 0,
+  ragHits: [], promptHistory: [], promptIndex: 0, pendingDoc: null,
 };
 
 async function api(path, options) {
@@ -367,6 +367,8 @@ function wireControls() {
   $("aspect-b").addEventListener("change", () => { state.aspectB = $("aspect-b").value; render(); });
   $("rag-verify").addEventListener("click", ragVerify);
   $("doc_file").addEventListener("change", () => attachDoc($("doc_file").files[0]));
+  $("doc-confirm").addEventListener("click", confirmDoc);
+  $("doc-cancel").addEventListener("click", hideDocPreview);
   document.querySelectorAll("#comm .tab").forEach((btn) => {
     btn.addEventListener("click", () => setCommTab(btn.dataset.tab));
   });
@@ -431,27 +433,50 @@ function currentUser() {
 
 async function attachDoc(file) {
   if (!file) return;
-  const now = () => Date.now() / 1000;
   let content = "";
   try {
     content = await file.text();
   } catch (e) {
-    appendEvents([{ ts: now(), type: "error", text: "cannot read file: " + e.message }]);
+    appendEvents([{ ts: Date.now() / 1000, type: "error", text: "cannot read file: " + e.message }]);
     return;
   }
-  const kind = /\.csv$/i.test(file.name) ? "csv" : "md";
-  appendEvents([{ ts: now(), type: "user", text: `attach: ${file.name}` }]);
+  showDocPreview({ name: file.name, kind: /\.csv$/i.test(file.name) ? "csv" : "md", content });
+  $("doc_file").value = "";
+}
+
+function showDocPreview(pending) {
+  state.pendingDoc = pending;
+  const lines = pending.content.split("\n").length;
+  const chunks = pending.kind === "csv"
+    ? Math.max(1, Math.ceil(Math.max(0, lines - 1) / 5))
+    : pending.content.split(/\n\s*\n/).filter((p) => p.trim()).length;
+  $("doc-preview-name").textContent = pending.name;
+  $("doc-preview-meta").textContent = `${pending.kind} · ${pending.content.length} chars · ~${chunks} chunks`;
+  $("doc-preview-body").textContent = pending.content.slice(0, 800) + (pending.content.length > 800 ? "\n…" : "");
+  $("doc-preview").classList.remove("hidden");
+}
+
+function hideDocPreview() {
+  state.pendingDoc = null;
+  $("doc-preview").classList.add("hidden");
+}
+
+async function confirmDoc() {
+  const pending = state.pendingDoc;
+  if (!pending) return;
+  const now = () => Date.now() / 1000;
+  appendEvents([{ ts: now(), type: "user", text: `attach: ${pending.name}` }]);
   try {
     const res = await api("/api/docs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user: currentUser(), name: file.name, kind, content }),
+      body: JSON.stringify({ user: currentUser(), name: pending.name, kind: pending.kind, content: pending.content }),
     });
-    appendEvents([{ ts: now(), type: "status", text: `indexed ${file.name} into RAG (${(res.chunks || []).length} chunks)` }]);
+    appendEvents([{ ts: now(), type: "status", text: `indexed ${pending.name} into RAG (${(res.chunks || []).length} chunks)` }]);
   } catch (e) {
     appendEvents([{ ts: now(), type: "error", text: "attach failed: " + e.message }]);
   }
-  $("doc_file").value = "";
+  hideDocPreview();
 }
 
 async function ragVerify() {

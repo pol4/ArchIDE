@@ -185,6 +185,17 @@
         <div class="comm-body">
           <div class="tabpane" id="tab-activity">
             <div id="activity" class="activity"></div>
+            <div id="doc-preview" class="doc-preview hidden">
+              <div class="doc-preview-head">
+                <span id="doc-preview-name"></span>
+                <span id="doc-preview-meta"></span>
+              </div>
+              <pre id="doc-preview-body" class="doc-preview-body"></pre>
+              <div class="row">
+                <button id="doc-confirm" class="secondary">Upload to RAG</button>
+                <button id="doc-cancel" class="secondary">Cancel</button>
+              </div>
+            </div>
             <div id="prompt-resize" class="prompt-resize" title="drag to resize the prompt"></div>
             <form id="prompt-form" class="prompt-form">
               <textarea id="prompt_input" rows="1" placeholder="Message the agent or ask RAG… (↑ history)" autocomplete="off"></textarea>

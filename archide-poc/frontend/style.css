@@ -354,3 +354,20 @@ button.mini.active { border-color: var(--accent); background: #1f2a37; color: #f
   font: 12px/1.4 ui-monospace, Menlo, monospace;
 }
 .prompt-form button { align-self: flex-end; height: 100%; }
+
+.doc-preview { border-top: 1px solid var(--line); padding: 8px 0; }
+.doc-preview.hidden { display: none; }
+.doc-preview-head { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+.doc-preview-head span:last-child { color: var(--muted); }
+.doc-preview-body {
+  max-height: 120px;
+  overflow: auto;
+  margin: 0 0 6px;
+  padding: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: 11px/1.4 ui-monospace, Menlo, monospace;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
