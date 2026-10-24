@@ -117,12 +117,12 @@ def main() -> int:
 
 def _prepare_storage(emit) -> None:
     """Create the shared-volume layout (mounted at ARCHIDE_DATA)."""
-    for key in ("ARCHIDE_DATA", "ARCHIDE_AGENT_DIR", "ARCHIDE_SHARED_DIR"):
-        value = os.environ.get(key)
-        if not value:
+    keys = ("ARCHIDE_DATA", "ARCHIDE_AGENT_DIR", "ARCHIDE_SHARED_DIR", "ARCHIDE_SCRATCH_DIR")
+    for key in keys:
+        if not os.environ.get(key):
             return
     try:
-        for key in ("ARCHIDE_DATA", "ARCHIDE_AGENT_DIR", "ARCHIDE_SHARED_DIR"):
+        for key in keys:
             Path(os.environ[key]).mkdir(parents=True, exist_ok=True)
         emit("status", f"shared storage ready at {os.environ['ARCHIDE_DATA']}")
     except OSError as exc:

@@ -19,7 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from backend import agents, analysis, gateway, metamodel, model_store, runtime, sandbox
+from backend import agents, analysis, gateway, maintenance, metamodel, model_store, runtime, sandbox
 from backend import config as config_mod
 from backend import runs
 from backend.graph_schema import registry_errors, validate_graph
@@ -190,6 +190,12 @@ class Handler(BaseHTTPRequestHandler):
             except json.JSONDecodeError as exc:
                 return self._json(400, {"detail": f"invalid JSON: {exc}"})
             return self._json(200, gateway.issue_lease(config_mod.load_config(), str(body.get("agent") or "builtin")))
+        if route == "/api/gc":
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            return self._json(200, maintenance.gc(int(body.get("keep_runs", 20)), int(body.get("keep_models", 20))))
         if route == "/llm/v1/chat/completions":
             return self._llm_chat()
 

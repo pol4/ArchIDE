@@ -328,6 +328,26 @@ def main() -> int:
     check("Ф2.6 aspects demo model is valid", st == 200 and r["validation"]["ok"] is True,
           str((r.get("validation") or {}).get("errors")[:3]))
 
+    # Ф1.5 - volume layout (scratch) + GC over host persistence
+    if STUB_STATE:
+        argv_path = pathlib.Path(STUB_STATE) / "argv.log"
+        argv = argv_path.read_text() if argv_path.exists() else ""
+        check("Ф1.5 container gets a scratch dir", "ARCHIDE_SCRATCH_DIR=" in argv, argv[-200:])
+    if DATA:
+        rd = pathlib.Path(DATA) / "runs"
+        md = pathlib.Path(DATA) / "models"
+        rd.mkdir(parents=True, exist_ok=True)
+        md.mkdir(parents=True, exist_ok=True)
+        for i in range(5):
+            (rd / f"aaaa00000000000{i}.json").write_text(
+                json.dumps({"id": f"aaaa00000000000{i}", "status": "done", "created": i, "events": []}))
+            (md / f"gcmodel{i}.json").write_text(json.dumps({"nodes": [], "edges": []}))
+        st, res = req("POST", "/api/gc", {"keep_runs": 2, "keep_models": 2})
+        check("Ф1.5 GC prunes old runs/models",
+              st == 200 and res.get("runs_removed", 0) >= 1 and res.get("models_removed", 0) >= 1, str(res))
+        remaining_runs = list(rd.glob("aaaa*.json"))
+        check("Ф1.5 GC keeps the newest", len(remaining_runs) <= 2, str(len(remaining_runs)))
+
     # restore a sane config
     put_config({"llm": {"mode": "mock"}, "agent": {"runner": "local"}, "context": {"compare_docs": False}})
 

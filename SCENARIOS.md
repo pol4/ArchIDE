@@ -61,8 +61,8 @@
   шлюз ведёт **аудит** без секретов и применяет **квоту на lease**; том доступен и
   сбрасывается; **запуски сохраняются на диск** и доступны по id (restart-safe).
 - **Покрытие:** API `S6 agents registry`, `S6 volume …`, `Ф1.1 …`, `Ф1.2 …`,
-  `Ф1.3 lease/audit/quota`, `Ф1.4 runs list/persisted/restart-safe`; браузер
-  `Ф1.1 agent manifest limits shown`.
+  `Ф1.3 lease/audit/quota`, `Ф1.4 runs list/persisted/restart-safe`, `Ф1.5 scratch/GC`;
+  браузер `Ф1.1 agent manifest limits shown`.
 
 ## S7 — Бюджет контекста и сжатие
 - **Цель:** ограничить объём контекста для агента.

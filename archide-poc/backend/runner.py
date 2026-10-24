@@ -231,6 +231,7 @@ def _run_docker(agent, prompt, constraints, repo_name, files, cfg, run, emit) ->
         "ARCHIDE_DATA": volume_mount,
         "ARCHIDE_AGENT_DIR": f"{volume_mount}/{agent['id']}",
         "ARCHIDE_SHARED_DIR": f"{volume_mount}/shared",
+        "ARCHIDE_SCRATCH_DIR": f"{volume_mount}/scratch/{job_id}",
         "ARCHIDE_MAX_REPAIRS": str(agent_cfg.get("max_repairs", 3)),
         "ARCHIDE_VALIDATE_URL": f"{base}/sandbox/validate/{job_id}?token={job_token}",
         "LLM_BASE_URL": f"{base}/llm/v1",
