@@ -62,6 +62,11 @@ async function clickChip(page, text) {
   await sleep(150);
 }
 
+const clickCommTab = (page, re) => page.evaluate((r) => {
+  const tab = [...document.querySelectorAll('#comm .tab')].find((t) => new RegExp(r, 'i').test(t.textContent));
+  if (tab) tab.click();
+}, re);
+
 async function clickNode(page, text) {
   const box = await page.evaluate((t) => {
     const gs = [...document.querySelectorAll('#canvas > g > g')].filter((g) => g.querySelector('rect.node-box'));
@@ -216,6 +221,7 @@ async function runDocs(browser) {
   await page.$eval('#doc_user', (el) => { el.value = 'e2e-user'; });
   await page.$eval('#doc_name', (el) => { el.value = 'reqs.md'; el.dispatchEvent(new Event('input', { bubbles: true })); });
   await page.select('#doc_kind', 'md');
+  await clickCommTab(page, 'content'); await sleep(100);
   await page.$eval('#doc_content', (el) => { el.value = '- REQ-1: system must charge payments\n- REQ-2: refunds must be supported'; });
   await page.click('#doc-upload');
   await sleep(400);
@@ -228,11 +234,68 @@ async function runDocs(browser) {
   const results = await page.$eval('#rag-results', (el) => el.textContent);
   check('Ф7.2 RAG search in UI', /refund/i.test(results), results);
 
+  await clickCommTab(page, 'answer'); await sleep(100);
   await page.$eval('#rag_answer', (el) => { el.value = 'Refunds must be supported. Unicorns fly over rainbows.'; });
   await page.click('#rag-verify');
   await sleep(300);
   const ground = await page.$eval('#rag-ground', (el) => el.textContent);
   check('Ф7.4 grounding verification in UI', /unsupported:\s*1/.test(ground), ground);
+
+  await page.close();
+}
+
+async function runComm(browser) {
+  const page = await browser.newPage();
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+  await page.setViewport({ width: 1680, height: 1000 });
+  await page.goto(`${BASE}/`, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelectorAll('#agent option').length > 0, { timeout: 15000 });
+
+  const clickTab = (re) => page.evaluate((r) => {
+    const tab = [...document.querySelectorAll('#comm .tab')].find((t) => new RegExp(r, 'i').test(t.textContent));
+    if (tab) tab.click();
+  }, re);
+
+  const tabs = await page.$$eval('#comm .tab', (els) => els.map((e) => e.textContent.trim()));
+  check('comm window has tabs (activity/content/answer)', tabs.length >= 3, JSON.stringify(tabs));
+
+  await clickTab('content'); await sleep(150);
+  check('content form is a tab', await page.$eval('#doc_content', (el) => el.offsetParent !== null));
+  await clickTab('answer'); await sleep(150);
+  check('answer-to-verify form is a tab', await page.$eval('#rag_answer', (el) => el.offsetParent !== null));
+  await clickTab('activity'); await sleep(150);
+  check('activity tab has a prompt form', await page.$eval('#prompt_input', (el) => el.offsetParent !== null));
+
+  await page.$eval('#doc_user', (el) => { el.value = 'comm-user'; });
+  await page.$eval('#doc_name', (el) => { el.value = 'comm.md'; });
+  await clickTab('content'); await sleep(100);
+  await page.$eval('#doc_content', (el) => { el.value = '- REQ-1: refunds must be supported'; });
+  await page.click('#doc-upload');
+  await sleep(300);
+  await clickTab('activity'); await sleep(100);
+
+  await page.$eval('#prompt_input', (el) => { el.value = 'refunds'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.click('#prompt-send');
+  await sleep(500);
+  const userEvents = await page.$$eval('#activity .ev.user', (els) => els.length);
+  const agentEvents = await page.$$eval('#activity .ev.reasoning, #activity .ev.output', (els) => els.length);
+  check('user prompt appears in the log', userEvents >= 1, `user=${userEvents}`);
+  check('agent events/reasoning appear in the log', agentEvents >= 1, `agent=${agentEvents}`);
+
+  await page.$eval('#prompt_input', (el) => { el.value = 'zzzznomatch'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.click('#prompt-send');
+  await sleep(500);
+  check('agent asks a question when nothing matches', (await page.$$eval('#activity .ev.question', (els) => els.length)) >= 1);
+
+  const h0 = await page.$eval('#comm', (el) => el.getBoundingClientRect().height);
+  const box = await page.$eval('#comm-resize', (el) => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await page.mouse.move(box.x, box.y);
+  await page.mouse.down();
+  await page.mouse.move(box.x, box.y - 60, { steps: 5 });
+  await page.mouse.up();
+  await sleep(200);
+  const h1 = await page.$eval('#comm', (el) => el.getBoundingClientRect().height);
+  check('comm window top border is resizable', h1 > h0 + 20, `h0=${Math.round(h0)} h1=${Math.round(h1)}`);
 
   await page.close();
 }
@@ -301,6 +364,7 @@ async function runLive(browser) {
     await runViews(browser);
     await runSplit(browser);
     await runDocs(browser);
+    await runComm(browser);
     await runLive(browser);
   } finally {
     await browser.close();

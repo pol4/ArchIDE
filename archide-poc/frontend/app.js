@@ -356,6 +356,11 @@ function wireControls() {
   $("doc-upload").addEventListener("click", uploadDoc);
   $("rag-search").addEventListener("click", ragSearch);
   $("rag-verify").addEventListener("click", ragVerify);
+  document.querySelectorAll("#comm .tab").forEach((btn) => {
+    btn.addEventListener("click", () => setCommTab(btn.dataset.tab));
+  });
+  $("prompt-form").addEventListener("submit", (e) => { e.preventDefault(); sendPrompt($("prompt_input").value); });
+  wireCommResize();
   loadDocs();
 }
 
@@ -474,6 +479,67 @@ async function ragVerify() {
   } catch (e) {
     $("rag-ground").textContent = "verify failed: " + e.message;
   }
+}
+
+function setCommTab(name) {
+  [["activity", "tab-activity"], ["content", "tab-content"], ["answer", "tab-answer"]].forEach(([key, pane]) => {
+    const btn = document.querySelector(`#comm .tab[data-tab="${key}"]`);
+    if (btn) btn.classList.toggle("active", key === name);
+    const el = $(pane);
+    if (el) el.classList.toggle("hidden", key !== name);
+  });
+}
+
+async function sendPrompt(text) {
+  const value = String(text || "").trim();
+  if (!value) return;
+  const now = () => Date.now() / 1000;
+  appendEvents([{ ts: now(), type: "user", text: value }]);
+  $("prompt_input").value = "";
+  try {
+    const res = await api("/api/rag/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user: currentUser(), query: value }),
+    });
+    const hits = res.results || [];
+    if (!hits.length) {
+      appendEvents([
+        { ts: now(), type: "reasoning", text: `no documents matched "${value}"` },
+        { ts: now(), type: "question", text: "Please upload a document or rephrase your request." },
+      ]);
+      return;
+    }
+    state.ragHits = hits;
+    appendEvents([{ ts: now(), type: "reasoning", text: `retrieved ${hits.length} marked chunk(s)` }]);
+    hits.forEach((h) => appendEvents([{ ts: now(), type: "output", text: `[${h.name}#${h.chunk}] ${h.text}` }]));
+  } catch (e) {
+    appendEvents([{ ts: now(), type: "error", text: "agent error: " + e.message }]);
+  }
+}
+
+function wireCommResize() {
+  const handle = $("comm-resize");
+  if (!handle) return;
+  let resizing = false, startY = 0, startH = 0;
+  handle.addEventListener("mousedown", (e) => {
+    resizing = true;
+    startY = e.clientY;
+    startH = $("comm").getBoundingClientRect().height;
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!resizing) return;
+    const h = Math.max(90, Math.min(window.innerHeight - 220, startH - (e.clientY - startY)));
+    $("comm").style.height = h + "px";
+  });
+  window.addEventListener("mouseup", () => {
+    if (!resizing) return;
+    resizing = false;
+    document.body.style.userSelect = "";
+    render();
+  });
 }
 
 async function loadVolumeInfo() {

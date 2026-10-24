@@ -148,10 +148,6 @@
           <span>User (personal history)</span>
           <input id="doc_user" type="text" value="default" />
         </label>
-        <label class="field">
-          <span>Content</span>
-          <textarea id="doc_content" rows="4" placeholder="- REQ-1: system must ..."></textarea>
-        </label>
         <button id="doc-upload" class="secondary">Upload document</button>
         <div id="doc-list" class="log"></div>
         <label class="field">
@@ -160,12 +156,6 @@
         </label>
         <button id="rag-search" class="secondary">Search RAG</button>
         <div id="rag-results" class="log"></div>
-        <label class="field">
-          <span>Answer to verify</span>
-          <textarea id="rag_answer" rows="2"></textarea>
-        </label>
-        <button id="rag-verify" class="secondary">Verify grounding</button>
-        <div id="rag-ground" class="log"></div>
       </section>
 
       <section class="panel" id="status-panel">
@@ -206,11 +196,34 @@
         <div id="empty" class="empty">Run a reconstruction to render the graph.</div>
       </div>
       <div id="validation" class="validation"></div>
-      <div class="activity-head">
-        <span>Agent activity</span>
-        <label class="toggle"><input type="checkbox" id="auto-scroll" checked /> autoscroll</label>
+      <div class="comm" id="comm">
+        <div id="comm-resize" class="comm-resize" title="drag to resize"></div>
+        <div class="comm-head">
+          <div class="comm-tabs">
+            <button class="tab active" data-tab="activity">Activity</button>
+            <button class="tab" data-tab="content">Content</button>
+            <button class="tab" data-tab="answer">Answer to verify</button>
+          </div>
+          <label class="toggle"><input type="checkbox" id="auto-scroll" checked /> autoscroll</label>
+        </div>
+        <div class="comm-body">
+          <div class="tabpane" id="tab-activity">
+            <div id="activity" class="activity"></div>
+            <form id="prompt-form" class="prompt-form">
+              <input id="prompt_input" type="text" placeholder="Message the agent…" autocomplete="off" />
+              <button id="prompt-send" class="secondary" type="submit">Send</button>
+            </form>
+          </div>
+          <div class="tabpane hidden" id="tab-content">
+            <textarea id="doc_content" placeholder="- REQ-1: system must ..."></textarea>
+          </div>
+          <div class="tabpane hidden" id="tab-answer">
+            <textarea id="rag_answer" placeholder="Answer text to verify against RAG chunks"></textarea>
+            <button id="rag-verify" class="secondary">Verify grounding</button>
+            <div id="rag-ground" class="log"></div>
+          </div>
+        </div>
       </div>
-      <div id="activity" class="activity"></div>
     </section>
   </main>
 
