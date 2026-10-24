@@ -263,6 +263,14 @@ def main() -> int:
     demo = json.loads(demo_path.read_text()) if demo_path.exists() else {}
     check("S10 demo.json present and valid", bool(demo.get("graph", {}).get("nodes")) and bool(demo.get("validation")))
 
+    # Ф2.5/Ф2.6 - aspects: metamodel aspects + aspects demo model validity
+    check("Ф2.5 metamodel exposes aspects", len(mm.get("aspects") or {}) >= 8, str(list((mm.get("aspects") or {}).keys())))
+    aspects_path = POC / "frontend" / "demo-aspects.json"
+    aspects_demo = json.loads(aspects_path.read_text()) if aspects_path.exists() else {}
+    st, r = req("POST", "/api/validate", {"graph": aspects_demo.get("graph", {})})
+    check("Ф2.6 aspects demo model is valid", st == 200 and r["validation"]["ok"] is True,
+          str((r.get("validation") or {}).get("errors")[:3]))
+
     # restore a sane config
     put_config({"llm": {"mode": "mock"}, "agent": {"runner": "local"}, "context": {"compare_docs": False}})
 

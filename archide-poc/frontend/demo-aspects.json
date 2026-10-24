@@ -1,0 +1,29 @@
+{
+  "agents": ["builtin"],
+  "repo": "aspects demo",
+  "status": "Done",
+  "llm": { "mode": "mock", "model": "aspects-demo", "base_url": "", "runner": "local", "max_repairs": 3, "timeout": 180 },
+  "context": { "max_chars": 400000, "compress_at": 0.8, "strategy": "extract", "compare_docs": false },
+  "meta": { "runner": "local", "agent": "builtin", "repo_path": "aspects-demo", "context": { "original_chars": 0, "final_chars": 0, "files_in": 0, "files_out": 0, "compressed": false } },
+  "events": [
+    { "ts": 0, "type": "status", "text": "aspects demo: model with structure, interface, data, behavior, aggregation, crosscutting" }
+  ],
+  "graph": {
+    "nodes": [
+      { "id": "sys://app", "type": "System", "name": "App", "parent": null, "evidence": ["app.py"], "sources": ["code"] },
+      { "id": "container://app/api", "type": "Container", "name": "API", "parent": "sys://app", "evidence": ["api/"], "sources": ["code"] },
+      { "id": "component://app/svc", "type": "Component", "name": "Service", "parent": "container://app/api", "evidence": ["svc.py"], "sources": ["code"] },
+      { "id": "iface://app/charge", "type": "Interface", "name": "Charge", "parent": "component://app/svc", "evidence": ["svc.py"], "sources": ["code"] },
+      { "id": "data://app/order", "type": "DataEntity", "name": "Order", "parent": "component://app/svc", "evidence": ["models.py"], "sources": ["code"] },
+      { "id": "sm://app/lifecycle", "type": "StateMachine", "name": "Lifecycle", "parent": "component://app/svc", "evidence": ["svc.py"], "sources": ["code"] },
+      { "id": "req://REG-1", "type": "Requirement", "name": "REG-1", "parent": "component://app/svc", "evidence": ["docs.md"], "sources": ["docs"] },
+      { "id": "agg://app/channel", "type": "AggregationInterface", "name": "IntegrationChannel", "parent": "container://app/api", "contract": "iface://app/charge", "evidence": ["svc.py"], "sources": ["code"] }
+    ],
+    "edges": [
+      { "source": "component://app/svc", "target": "iface://app/charge", "type": "exposes" },
+      { "source": "iface://app/charge", "target": "agg://app/channel", "type": "aggregates" },
+      { "source": "req://REG-1", "target": "component://app/svc", "type": "satisfies" }
+    ]
+  },
+  "validation": { "ok": true, "errors": [], "warnings": [], "stats": { "nodes": 8, "edges": 3, "roots": 1 } }
+}

@@ -49,14 +49,37 @@ async function putConfig(patch) {
     body: JSON.stringify(patch),
   });
 }
-const nodeCount = (page) => page.$$eval('#canvas g', (els) => els.length);
+const nodeCount = (page) => page.$$eval('#canvas > g > g', (els) => els.length);
 const crumbCount = (page) => page.$$eval('#breadcrumb button', (els) => els.length);
+const activeChips = (page) => page.$$eval('#legend .chip.active', (els) => els.map((e) => e.textContent.trim()));
+const emptyShown = (page) => page.$eval('#empty', (el) => getComputedStyle(el).display !== 'none');
+
+async function clickChip(page, text) {
+  await page.evaluate((t) => {
+    const chip = [...document.querySelectorAll('#legend .chip')].find((c) => c.textContent.trim() === t);
+    if (chip) chip.click();
+  }, text);
+  await sleep(150);
+}
+
+async function clickNode(page, text) {
+  const box = await page.evaluate((t) => {
+    const gs = [...document.querySelectorAll('#canvas > g > g')].filter((g) => g.querySelector('rect.node-box'));
+    const node = gs.find((g) => g.textContent.includes(t));
+    if (!node) return null;
+    const r = node.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  }, text);
+  if (box) await page.mouse.click(box.x, box.y);
+  await sleep(200);
+}
 
 async function runDemo(browser) {
   const page = await browser.newPage();
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
   await page.setViewport({ width: 1680, height: 1000 });
   await page.goto(`${BASE}/?demo=1`, { waitUntil: 'load' });
-  await page.waitForFunction(() => document.querySelectorAll('#canvas g').length > 1, { timeout: 15000 });
+  await page.waitForFunction(() => document.querySelectorAll('#canvas > g > g').length > 0, { timeout: 15000 });
 
   const n0 = await nodeCount(page);
   check('S10 demo renders graph nodes', n0 > 1, `nodes=${n0 - 1}`);
@@ -65,7 +88,7 @@ async function runDemo(browser) {
 
   // S4 drill-down: real mouse click on a node that has children (marked with ⊕)
   const box = await page.evaluate(() => {
-    const gs = [...document.querySelectorAll('#canvas g')].filter((g) => g.querySelector('rect.node-box'));
+    const gs = [...document.querySelectorAll('#canvas > g > g')].filter((g) => g.querySelector('rect.node-box'));
     const target = gs.find((g) => g.textContent.includes('⊕'));
     if (!target) return null;
     const r = target.getBoundingClientRect();
@@ -93,6 +116,49 @@ async function runDemo(browser) {
   await page.close();
 }
 
+async function runAspects(browser) {
+  const page = await browser.newPage();
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+  await page.setViewport({ width: 1680, height: 1000 });
+  await page.goto(`${BASE}/?demo=aspects`, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelectorAll('#canvas > g > g').length > 0, { timeout: 15000 });
+
+  const chips = await page.$$eval('#legend .chip', (els) => els.length);
+  check('Ф2.5 aspect chips present', chips >= 8, `chips=${chips}`);
+
+  let active = await activeChips(page);
+  check('Ф2.5 default aspect = structure', active.length === 1 && active[0] === 'structure', active.join(','));
+
+  await clickChip(page, 'structure');
+  active = await activeChips(page);
+  check('Ф2.5 structure is locked (for navigation)', active.includes('structure'));
+
+  await clickNode(page, 'API');
+  const n1 = await nodeCount(page);
+  check('Ф2.5 drill shows the structural child', n1 >= 1, `nodes=${n1 - 1}`);
+
+  await clickChip(page, 'aggregation');
+  const n2 = await nodeCount(page);
+  active = await activeChips(page);
+  check('Ф2.6 multi-aspect adds elements simultaneously',
+    n2 > n1 && active.includes('aggregation') && active.includes('structure'),
+    `nodes ${n1 - 1}->${n2 - 1}; active=${active.join(',')}`);
+
+  await clickNode(page, 'Service');
+  check('Ф2.5 empty hint when no elements of the selected aspect', await emptyShown(page));
+
+  await clickChip(page, 'interface');
+  const n3 = await nodeCount(page);
+  await clickChip(page, 'data');
+  const n4 = await nodeCount(page);
+  active = await activeChips(page);
+  check('Ф2.6 several aspects visible at once',
+    n3 >= 1 && n4 > n3 && active.includes('interface') && active.includes('data'),
+    `nodes ${n3 - 1}->${n4 - 1}; active=${active.join(',')}`);
+
+  await page.close();
+}
+
 async function runLive(browser) {
   await putConfig({
     llm: { mode: 'mock', model: 'test-model' },
@@ -101,6 +167,7 @@ async function runLive(browser) {
   });
 
   const page = await browser.newPage();
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
   await page.setViewport({ width: 1680, height: 1000 });
   await page.goto(`${BASE}/`, { waitUntil: 'load' });
   // wait until the app has initialized (agent list populated)
@@ -133,7 +200,7 @@ async function runLive(browser) {
   const events = await page.$$eval('#activity .ev', (els) => els.length);
 
   check('S2 run finished in UI', /Done/.test(statusText), statusText);
-  check('S2 graph rendered in UI', nodes > 1, `nodes=${nodes - 1}`);
+  check('S2 graph rendered in UI', nodes >= 1, `nodes=${nodes - 1}`);
   check('S8 validation panel reports a valid model', /nodes:/.test(validation) && !validation.includes('✕'), validation.slice(0, 80));
   check('S5 activity feed has events', events > 0, `events=${events}`);
   check('S7 context report present', /context:/i.test(await page.$eval('#log', (el) => el.textContent)));
@@ -152,6 +219,7 @@ async function runLive(browser) {
   try {
     console.log(`Browser e2e against ${BASE}`);
     await runDemo(browser);
+    await runAspects(browser);
     await runLive(browser);
   } finally {
     await browser.close();

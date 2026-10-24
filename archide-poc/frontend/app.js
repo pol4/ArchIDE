@@ -26,6 +26,43 @@ const EDGE_COLORS = {
   aggregates: "#ec4899",
 };
 
+// Aspects (mirror of backend/metamodel.py; overridden by GET /api/metamodel).
+const ASPECT_COLORS = {
+  structure: "#3b82f6",
+  interface: "#a855f7",
+  data: "#06b6d4",
+  behavior: "#10b981",
+  process: "#f59e0b",
+  access: "#ec4899",
+  deployment: "#eab308",
+  quality: "#14b8a6",
+  aggregation: "#8b5cf6",
+  crosscutting: "#8b949e",
+};
+let ASPECT_TYPES = {
+  structure: ["System", "Container", "Component", "Module", "Actor", "ExternalSystem"],
+  interface: ["Interface", "Operation", "Message", "SchemaRef"],
+  data: ["DataStore", "DataEntity", "Attribute"],
+  behavior: ["StateMachine", "State", "Transition", "Event"],
+  process: ["Process", "Activity", "Task", "Gateway", "Participant"],
+  access: ["Role", "Permission", "Policy", "Principal", "Resource"],
+  deployment: ["Node", "Environment", "Runtime", "InfraResource"],
+  quality: ["NFR", "SLO", "Constraint"],
+  aggregation: ["AggregationInterface"],
+  crosscutting: ["Capability", "Decision", "Requirement", "Artifact", "Agent"],
+};
+let TYPE_TO_ASPECT = {};
+function rebuildTypeMap() {
+  TYPE_TO_ASPECT = {};
+  Object.entries(ASPECT_TYPES).forEach(([aspect, types]) => {
+    (types || []).forEach((t) => { TYPE_TO_ASPECT[t] = aspect; });
+  });
+}
+function aspectOf(node) {
+  return TYPE_TO_ASPECT[node && node.type] || "structure";
+}
+rebuildTypeMap();
+
 const LEVEL_LABELS = ["System (L1)", "Container (L2)", "Component (L3)", "Module (L4)", "Level 5", "Level 6"];
 
 const $ = (id) => document.getElementById(id);
@@ -37,7 +74,7 @@ const CONFIG_FIELDS = [
 const state = {
   config: null, agents: [], runId: null, since: 0, poll: null, saveTimer: null,
   graph: null, focus: null, selected: null, byId: null, kids: null, rootId: null,
-  sourceMode: "all",
+  sourceMode: "all", aspects: new Set(["structure"]),
 };
 
 async function api(path, options) {
@@ -266,12 +303,15 @@ function logMeta(meta) {
 // ------------------------------------------------------------------ init
 
 async function init() {
-  buildLegend();
+  buildAspectChips();
   if (new URLSearchParams(location.search).has("demo")) {
     await initDemo();
     return;
   }
-  const [config, agents] = await Promise.all([api("/api/config"), api("/api/agents")]);
+  const [config, agents, metamodel] = await Promise.all([
+    api("/api/config"), api("/api/agents"), api("/api/metamodel").catch(() => null),
+  ]);
+  applyMetamodel(metamodel);
   applyConfig(config);
 
   const sel = $("agent");
@@ -313,7 +353,9 @@ function wireControls() {
 // Offline demo mode (no server): load demo.json and render a completed run.
 // Used for screenshots / landing page: open index.html?demo=1 (optionally &mode=code|docs).
 async function initDemo() {
-  const demo = await (await fetch("demo.json")).json();
+  const params = new URLSearchParams(location.search);
+  const file = params.get("demo") === "aspects" ? "demo-aspects.json" : "demo.json";
+  const demo = await (await fetch(file)).json();
   const sel = $("agent");
   sel.innerHTML = "";
   (demo.agents || ["builtin"]).forEach((id) => {
@@ -343,7 +385,6 @@ async function initDemo() {
   renderValidation(demo.validation);
   wireControls();
 
-  const params = new URLSearchParams(location.search);
   const focus = params.get("focus");
   if (focus) { state.focus = focus; render(); }
   const mode = params.get("mode");
@@ -379,19 +420,41 @@ async function resetVolume() {
   }
 }
 
-function buildLegend() {
+function buildAspectChips() {
   const el = $("legend");
   el.innerHTML = "";
-  Object.entries(TYPE_COLORS).forEach(([name, color]) => {
-    const span = document.createElement("span");
-    span.innerHTML = `<i style="background:${color}"></i>${name}`;
-    el.appendChild(span);
+  Object.keys(ASPECT_TYPES).forEach((aspect) => {
+    const btn = document.createElement("button");
+    const active = state.aspects.has(aspect);
+    btn.className = "chip" + (active ? " active" : "") + (aspect === "structure" ? " locked" : "");
+    btn.textContent = aspect;
+    btn.title = aspect === "structure"
+      ? "structure (always on, for navigation)"
+      : `toggle aspect: ${aspect}`;
+    btn.style.borderColor = ASPECT_COLORS[aspect] || "#8b949e";
+    if (active) btn.style.background = ASPECT_COLORS[aspect] || "#8b949e";
+    btn.addEventListener("click", () => toggleAspect(aspect));
+    el.appendChild(btn);
   });
-  [["code only", "#22d3ee"], ["docs only", "#f97316"]].forEach(([name, color]) => {
-    const span = document.createElement("span");
-    span.innerHTML = `<i style="background:${color}"></i>⚠ ${name}`;
-    el.appendChild(span);
-  });
+}
+
+function toggleAspect(aspect) {
+  if (aspect === "structure") return; // structure stays for navigation
+  if (state.aspects.has(aspect)) state.aspects.delete(aspect);
+  else state.aspects.add(aspect);
+  buildAspectChips();
+  render();
+}
+
+function applyMetamodel(mm) {
+  if (!mm || !mm.aspects) return;
+  const rebuilt = {};
+  Object.entries(mm.aspects).forEach(([name, spec]) => { rebuilt[name] = spec.node_types || []; });
+  if (Object.keys(rebuilt).length) {
+    ASPECT_TYPES = rebuilt;
+    rebuildTypeMap();
+    buildAspectChips();
+  }
 }
 
 function renderValidation(v) {
@@ -485,16 +548,18 @@ function render() {
   };
   nodes.forEach((n) => depthOf(n));
 
-  // exactly one level: the direct children of the focus node
+  // exactly one level: the direct children of the focus node, filtered by
+  // selected aspects (Ф2.5/Ф2.6) and source mode
   const mode = state.sourceMode;
   const srcOf = (el) => (el && el.sources && el.sources.length ? el.sources : ["code"]);
   const matchMode = (el) => mode === "all" || srcOf(el).includes(mode);
+  const matchAspect = (el) => state.aspects.has(aspectOf(el));
   const children = (kids.get(focusId) || []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const single = children.length === 0 && byId.has(focusId);
-  const visNodes = (single ? [byId.get(focusId)] : children).filter(matchMode);
+  const visNodes = (single ? [byId.get(focusId)] : children).filter((n) => matchMode(n) && matchAspect(n));
   if (!visNodes.length) {
     renderBreadcrumb(focusId, byId);
-    empty.textContent = `No elements from "${mode}" at this level.`;
+    empty.textContent = `No elements of the selected aspects/sources at this level.`;
     empty.style.display = "flex";
     return;
   }
@@ -549,6 +614,13 @@ function render() {
 
   // edges between visible nodes only
   const visible = new Set(visNodes.map((x) => x.id));
+  const neighbors = new Set();
+  if (state.selected) {
+    edges.forEach((e) => {
+      if (e.source === state.selected) neighbors.add(e.target);
+      if (e.target === state.selected) neighbors.add(e.source);
+    });
+  }
   edges.forEach((e) => {
     if (!visible.has(e.source) || !visible.has(e.target) || !matchMode(e)) return;
     const a = pos.get(e.source), b = pos.get(e.target);
@@ -574,7 +646,9 @@ function render() {
     const both = sources.length > 1;
     const drillable = (kids.get(node.id) || []).length > 0;
     const selected = state.selected === node.id;
-    let color = TYPE_COLORS[node.type] || "#8b949e";
+    const neighbor = !selected && neighbors.has(node.id);
+    const aspect = aspectOf(node);
+    let color = ASPECT_COLORS[aspect] || "#8b949e";
     if (mode === "all" && !both) color = SRC_COLORS[sources[0]] || color;
     const g = document.createElementNS(NS, "g");
     g.setAttribute("transform", `translate(${p.x},${p.y})`);
@@ -584,7 +658,7 @@ function render() {
     rect.setAttribute("height", p.h);
     rect.setAttribute("fill", selected ? "#1f2a37" : "#161b22");
     rect.setAttribute("stroke", color);
-    rect.setAttribute("stroke-width", selected ? 3 : 1.5);
+    rect.setAttribute("stroke-width", selected ? 3 : neighbor ? 2.5 : 1.5);
     if (!both) rect.setAttribute("stroke-dasharray", "6 4");
     g.appendChild(rect);
     const bar = document.createElementNS(NS, "rect");
@@ -621,7 +695,7 @@ function render() {
     }
     const title = document.createElementNS(NS, "title");
     title.textContent =
-      `${node.id}\n${node.type}\nsources: ${sources.join(", ")}` +
+      `${node.id}\n${node.type} · ${aspect}\nsources: ${sources.join(", ")}` +
       (node.note ? `\n${node.note}` : "") +
       (drillable ? "\nclick to open the next level" : "") +
       (node.description ? `\n${node.description}` : "");

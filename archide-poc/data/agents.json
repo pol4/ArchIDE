@@ -1,0 +1,20 @@
+{
+  "agents": [
+    {
+      "id": "builtin",
+      "name": "Built-in Reconstructor",
+      "kind": "builtin",
+      "image": "archide-agent:latest",
+      "description": "Stdlib agent: reconstructs the graph via an OpenAI-compatible LLM through the gateway.",
+      "limits": {}
+    },
+    {
+      "id": "kilocode",
+      "name": "Kilo Code CLI",
+      "kind": "cli",
+      "image": "archide-kilo:latest",
+      "description": "Runs the Kilo Code CLI in the sandbox; reaches the LLM through the ArchIDE gateway.",
+      "limits": {}
+    }
+  ]
+}
