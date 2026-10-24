@@ -727,6 +727,7 @@ async function generateArtifacts() {
       body: JSON.stringify({ kinds: ["openapi", "ddl", "schema", "skeleton"] }),
     });
     const arts = res.artifacts || {};
+    openArtifactsWindow(arts);
     $("gen-info").textContent = Object.keys(arts).length
       ? Object.entries(arts).map(([k, v]) => `${k}: ${v.length} chars`).join("\n")
       : "no artifacts";
@@ -744,6 +745,7 @@ async function showCoverageMatrix() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
     });
+    openCoverageWindow(res);
     $("gen-info").textContent = `coverage: ${res.covered}/${res.total} (${Math.round((res.ratio || 0) * 100)}%)`;
   } catch (e) {
     $("gen-info").textContent = "coverage failed: " + e.message;
@@ -863,6 +865,49 @@ function makeDraggable(win) {
     win.style.top = (e.clientY - sy) + "px";
   });
   window.addEventListener("mouseup", () => { dragging = false; });
+}
+
+function openArtifactsWindow(artifacts) {
+  const winId = "awin-artifacts";
+  if ($(winId)) $(winId).remove();
+  const names = Object.keys(artifacts || {});
+  const win = document.createElement("div");
+  win.className = "awin wide";
+  win.id = winId;
+  win.style.left = "40px";
+  win.style.top = "40px";
+  win.innerHTML = `
+    <div class="awin-head"><span>Generated artifacts</span><button class="awin-close" title="close">\u2715</button></div>
+    <div class="awin-tabs">${names.map((n, i) => `<button class="tab${i === 0 ? " active" : ""}" data-a="${n}">${n}</button>`).join("")}</div>
+    <pre class="awin-pre"></pre>`;
+  $("windows").appendChild(win);
+  const pre = win.querySelector(".awin-pre");
+  const show = (name) => {
+    pre.textContent = (artifacts || {})[name] || "";
+    win.querySelectorAll(".awin-tabs .tab").forEach((b) => b.classList.toggle("active", b.dataset.a === name));
+  };
+  win.querySelectorAll(".awin-tabs .tab").forEach((b) => b.addEventListener("click", () => show(b.dataset.a)));
+  show(names[0] || "");
+  win.querySelector(".awin-close").addEventListener("click", () => win.remove());
+  makeDraggable(win);
+}
+
+function openCoverageWindow(cov) {
+  const winId = "awin-coverage";
+  if ($(winId)) $(winId).remove();
+  const rows = ((cov && cov.matrix) || []).map((r) =>
+    `<div class="awin-row"><span>${r.element}</span><span class="${r.covered ? "ok" : "warn"}">${r.covered ? "covered" : "\u2014"}</span></div>`).join("");
+  const win = document.createElement("div");
+  win.className = "awin";
+  win.id = winId;
+  win.style.left = "80px";
+  win.style.top = "80px";
+  win.innerHTML = `
+    <div class="awin-head"><span>Coverage ${(cov && cov.covered) || 0}/${(cov && cov.total) || 0}</span><button class="awin-close" title="close">\u2715</button></div>
+    <div class="awin-body">${rows || "<div class='muted'>no elements</div>"}</div>`;
+  $("windows").appendChild(win);
+  win.querySelector(".awin-close").addEventListener("click", () => win.remove());
+  makeDraggable(win);
 }
 
 function openAspectWindow(aspect) {

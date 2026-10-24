@@ -432,3 +432,11 @@ button.danger.mini { background: #b62324; border-color: #b62324; color: #fff; }
 .awin-add input { flex: 1; }
 .awin-add select { width: auto; }
 .awin-add button { width: auto; padding: 0 8px; }
+
+.awin.wide { width: 480px; }
+.awin-tabs { display: flex; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.awin-tabs .tab { width: auto; padding: 2px 8px; background: transparent; border: 1px solid var(--line); color: var(--muted); font-size: 11px; border-radius: 6px; }
+.awin-tabs .tab.active { color: var(--text); background: var(--panel-2); }
+.awin-pre { max-height: 280px; overflow: auto; margin: 0; padding: 8px 10px; font: 11px/1.4 ui-monospace, Menlo, monospace; white-space: pre-wrap; color: var(--text); }
+.awin-row .ok { color: var(--ok); }
+.awin-row .warn { color: var(--muted); }

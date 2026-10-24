@@ -450,13 +450,15 @@ async function runGenerate(browser) {
   await page.$eval('#gen_model', (el) => { el.value = 'genuitest'; });
   await page.click('#gen-run');
   await sleep(400);
-  const info = await page.$eval('#gen-info', (el) => el.textContent);
-  check('Ф5.1 generate artifacts in UI', /openapi/.test(info) && /ddl/.test(info), info);
+  const artWin = await page.$('#awin-artifacts');
+  const artTxt = artWin ? await page.$eval('#awin-artifacts', (el) => el.textContent) : '';
+  check('Ф5.1 artifacts shown in a window', !!artWin && /openapi/i.test(artTxt) && /ddl/i.test(artTxt), artTxt.slice(0, 160));
 
   await page.click('#gen-coverage');
   await sleep(400);
-  const info2 = await page.$eval('#gen-info', (el) => el.textContent);
-  check('Ф5.4 coverage shown in UI', /coverage:/.test(info2), info2);
+  const covWin = await page.$('#awin-coverage');
+  const covTxt = covWin ? await page.$eval('#awin-coverage', (el) => el.textContent) : '';
+  check('Ф5.4 coverage shown in a window', !!covWin && /coverage/i.test(covTxt), covTxt.slice(0, 120));
 
   await page.close();
 }

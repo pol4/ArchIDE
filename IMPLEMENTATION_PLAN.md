@@ -82,10 +82,10 @@
 
 | ID | Задача | Изменения | Тесты (до реализации) | Готово, когда |
 |---|---|---|---|---|
-| Ф5.1 ✅ | Генераторы артефактов | `backend/generate.py`: OpenAPI (из Interface/Operation), DDL/JSON Schema (из DataEntity/Attribute), скелеты; API `/generate`; UI-панель | API + браузер | артефакты генерируются детерминированно |
+| Ф5.1 ✅ | Генераторы артефактов | `backend/generate.py`: OpenAPI (из Interface/Operation), DDL/JSON Schema (из DataEntity/Attribute), скелеты; API `/generate`; UI: окно «Generated artifacts» с вкладками | API + браузер | артефакты генерируются детерминированно |
 | Ф5.2 ✅ | Пакеты работ | срез (slice) + критерии (требования/операции); API `/workpackage` | API | пакет работ формируется из модели |
 | Ф5.3 ✅ | Подписанные метки трассируемости | `markers.sign_trace/verify_trace` (artifact/chain/lease); API `/markers`, `/api/markers/verify` kind=trace | API | метки подписаны и проверяются |
-| Ф5.4 ✅ | Конформанс + матрица покрытия | `coverage_matrix` (элемент × артефакт) + `conformance` (метки+покрытие); API `/coverage-matrix`, `/conformance` | API + браузер | результат проверяется gate |
+| Ф5.4 ✅ | Конформанс + матрица покрытия | `coverage_matrix` (элемент × артефакт) + `conformance` (метки+покрытие); API `/coverage-matrix`, `/conformance`; UI: окно «Coverage» | API + браузер | результат проверяется gate |
 | Ф5.5 ✅ | Repair-цикл до gate | `conformance_loop` — gaps + repair-подсказки; API `/conformance-loop` | API | gate зелёный или список доработок |
 
 ## Ф6 — Опыт, самоадаптация и рефлексия агента
