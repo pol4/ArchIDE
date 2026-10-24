@@ -13,6 +13,7 @@ _BASE = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("ARCHIDE_DATA", _BASE / "data"))
 CONFIG_PATH = DATA_DIR / "config.json"
 MODELS_DIR = DATA_DIR / "models"
+RUNS_DIR = DATA_DIR / "runs"
 AGENTS_PATH = DATA_DIR / "agents.json"
 _lock = Lock()
 

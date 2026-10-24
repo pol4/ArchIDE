@@ -260,6 +260,33 @@ def main() -> int:
     check("Ф1.3 per-lease quota enforced (429 on 2nd)", r1 != 401 and r2 == 429, f"first={r1} second={r2}")
     put_config({"gateway": {"quota_per_lease": 0}})
 
+    # Ф1.4 - persistent runs
+    _, runs_list = req("GET", "/api/runs")
+    check("Ф1.4 runs list exposed", isinstance(runs_list.get("runs"), list), str(runs_list)[:120])
+    if DATA:
+        rd = pathlib.Path(DATA) / "runs"
+        files = sorted(rd.glob("*.json")) if rd.exists() else []
+        check("Ф1.4 completed runs persisted on disk", len(files) >= 1, str(rd))
+        if files:
+            rec = json.loads(files[0].read_text())
+            check("Ф1.4 run record has repo+status", bool(rec.get("repo")) and bool(rec.get("status")), str(rec)[:140])
+
+    crafted = "deadbeefdeadbeef"
+    if DATA:
+        rd = pathlib.Path(DATA) / "runs"
+        rd.mkdir(parents=True, exist_ok=True)
+        (rd / f"{crafted}.json").write_text(json.dumps({
+            "id": crafted, "repo": "crafted-repo", "agent": "builtin", "status": "done",
+            "created": 0, "updated": 0, "events": [{"ts": 0, "type": "status", "text": "persisted"}],
+            "event_count": 1, "graph": None, "validation": {"ok": True}, "error": None, "meta": {},
+        }))
+    st, loaded = req("GET", f"/api/runs/{crafted}")
+    check("Ф1.4 run loaded from disk (restart-safe)", st == 200 and loaded.get("id") == crafted and loaded.get("repo") == "crafted-repo",
+          str(loaded)[:140])
+    _, runs_list2 = req("GET", "/api/runs")
+    ids2 = [r.get("id") for r in (runs_list2.get("runs") or [])]
+    check("Ф1.4 runs list includes persisted run", crafted in ids2, str(ids2[:6]))
+
     # S5 - cancel a running (docker-path) run
     if STUB_STATE:
         pathlib.Path(STUB_STATE, "slow").write_text("1")

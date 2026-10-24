@@ -104,6 +104,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, gateway.info(config_mod.load_config()))
         if route == "/api/gateway/audit":
             return self._json(200, {"audit": gateway.audit_tail()})
+        if route == "/api/runs":
+            return self._json(200, {"runs": runs.list_runs()})
         if route == "/api/metamodel":
             payload = metamodel.registry()
             payload["registry_errors"] = registry_errors()
