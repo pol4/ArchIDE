@@ -74,7 +74,7 @@ const CONFIG_FIELDS = [
 const state = {
   config: null, agents: [], runId: null, since: 0, poll: null, saveTimer: null,
   graph: null, fullGraph: null, focus: null, selected: null, byId: null, kids: null, rootId: null,
-  sourceMode: "all", aspects: new Set(["structure"]),
+  sourceMode: "all", aspects: new Set(["structure"]), split: false, aspectB: "interface",
 };
 
 async function api(path, options) {
@@ -350,6 +350,8 @@ function wireControls() {
   [["src-all", "all"], ["src-code", "code"], ["src-docs", "docs"]].forEach(([id, mode]) => {
     $(id).addEventListener("click", () => setSourceMode(mode));
   });
+  $("split").addEventListener("change", () => { state.split = $("split").checked; render(); });
+  $("aspect-b").addEventListener("change", () => { state.aspectB = $("aspect-b").value; render(); });
 }
 
 // Offline demo mode (no server): load demo.json and render a completed run.
@@ -438,6 +440,18 @@ function buildAspectChips() {
     btn.addEventListener("click", () => toggleAspect(aspect));
     el.appendChild(btn);
   });
+
+  const ab = $("aspect-b");
+  if (ab) {
+    ab.innerHTML = "";
+    Object.keys(ASPECT_TYPES).forEach((aspect) => {
+      const opt = document.createElement("option");
+      opt.value = aspect;
+      opt.textContent = aspect;
+      ab.appendChild(opt);
+    });
+    ab.value = ASPECT_TYPES[state.aspectB] ? state.aspectB : "structure";
+  }
 }
 
 function toggleAspect(aspect) {
@@ -538,22 +552,7 @@ function zoomOut() {
   render();
 }
 
-function render() {
-  const svg = $("canvas");
-  const wrap = $("canvas-wrap");
-  const empty = $("empty");
-  const crumb = $("breadcrumb");
-  svg.innerHTML = "";
-  crumb.innerHTML = "";
-
-  const graph = state.graph;
-  if (!graph) {
-    empty.textContent = "Run a reconstruction to render the graph.";
-    empty.style.display = "flex";
-    return;
-  }
-  empty.style.display = "none";
-
+function computeView(graph) {
   const nodes = graph.nodes.filter((n) => n && n.id);
   const edges = graph.edges || [];
   const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -567,12 +566,6 @@ function render() {
   const roots = nodes.filter((n) => !n.parent || !byId.has(n.parent));
   const rootId = roots.length ? roots[0].id : nodes[0].id;
   const focusId = state.focus && byId.has(state.focus) ? state.focus : rootId;
-
-  state.byId = byId;
-  state.kids = kids;
-  state.rootId = rootId;
-
-  // absolute depth from the root
   const absDepth = new Map();
   const depthOf = (n, guard) => {
     guard = guard || new Set();
@@ -584,24 +577,27 @@ function render() {
     return d;
   };
   nodes.forEach((n) => depthOf(n));
+  return { nodes, edges, byId, kids, rootId, focusId, absDepth };
+}
 
-  // exactly one level: the direct children of the focus node, filtered by
-  // selected aspects (Ф2.5/Ф2.6) and source mode
+function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
+  svg.innerHTML = "";
+  const { edges, byId, kids, focusId, absDepth } = view;
   const mode = state.sourceMode;
   const srcOf = (el) => (el && el.sources && el.sources.length ? el.sources : ["code"]);
   const matchMode = (el) => mode === "all" || srcOf(el).includes(mode);
-  const matchAspect = (el) => state.aspects.has(aspectOf(el));
+  const matchAspect = (el) => aspectsSet.has(aspectOf(el));
   const children = (kids.get(focusId) || []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const single = children.length === 0 && byId.has(focusId);
   const visNodes = (single ? [byId.get(focusId)] : children).filter((n) => matchMode(n) && matchAspect(n));
   if (!visNodes.length) {
-    renderBreadcrumb(focusId, byId);
-    empty.textContent = `No elements of the selected aspects/sources at this level.`;
-    empty.style.display = "flex";
+    if (emptyEl) {
+      emptyEl.textContent = "No elements of the selected aspects/sources at this level.";
+      emptyEl.style.display = "flex";
+    }
     return;
   }
-
-  renderBreadcrumb(focusId, byId);
+  if (emptyEl) emptyEl.style.display = "none";
 
   const level = single ? absDepth.get(focusId) : (absDepth.get(focusId) || 0) + 1;
   const levelLabel = LEVEL_LABELS[level] || `Level ${level}`;
@@ -649,7 +645,6 @@ function render() {
   levelText.textContent = levelLabel;
   viewport.appendChild(levelText);
 
-  // edges between visible nodes only
   const visible = new Set(visNodes.map((x) => x.id));
   const neighbors = new Set();
   if (state.selected) {
@@ -746,27 +741,27 @@ function render() {
     viewport.appendChild(g);
   });
 
-  const view = { x: 0, y: 0, k: 1 };
+  const cam = { x: 0, y: 0, k: 1 };
   const r = wrap.getBoundingClientRect();
   const fitK = Math.min(1, Math.min(r.width / totalW, r.height / totalH)) * 0.95;
-  view.k = fitK > 0 ? fitK : 1;
-  view.x = (r.width - totalW * view.k) / 2;
-  view.y = (r.height - totalH * view.k) / 2;
-  const apply = () => viewport.setAttribute("transform", `translate(${view.x},${view.y}) scale(${view.k})`);
+  cam.k = fitK > 0 ? fitK : 1;
+  cam.x = (r.width - totalW * cam.k) / 2;
+  cam.y = (r.height - totalH * cam.k) / 2;
+  const apply = () => viewport.setAttribute("transform", `translate(${cam.x},${cam.y}) scale(${cam.k})`);
   apply();
 
   let dragging = false, sx = 0, sy = 0;
   svg.addEventListener("mousedown", (ev) => {
     dragging = true;
-    sx = ev.clientX - view.x;
-    sy = ev.clientY - view.y;
+    sx = ev.clientX - cam.x;
+    sy = ev.clientY - cam.y;
     svg.classList.add("dragging");
   });
   window.addEventListener("mouseup", () => { dragging = false; svg.classList.remove("dragging"); });
   window.addEventListener("mousemove", (ev) => {
     if (!dragging) return;
-    view.x = ev.clientX - sx;
-    view.y = ev.clientY - sy;
+    cam.x = ev.clientX - sx;
+    cam.y = ev.clientY - sy;
     apply();
   });
   svg.addEventListener("wheel", (ev) => {
@@ -774,12 +769,37 @@ function render() {
     const rect = wrap.getBoundingClientRect();
     const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
     const factor = ev.deltaY < 0 ? 1.12 : 1 / 1.12;
-    const nk = Math.max(0.2, Math.min(3, view.k * factor));
-    view.x = mx - (mx - view.x) * (nk / view.k);
-    view.y = my - (my - view.y) * (nk / view.k);
-    view.k = nk;
+    const nk = Math.max(0.2, Math.min(3, cam.k * factor));
+    cam.x = mx - (mx - cam.x) * (nk / cam.k);
+    cam.y = my - (my - cam.y) * (nk / cam.k);
+    cam.k = nk;
     apply();
   }, { passive: false });
+}
+
+function render() {
+  const crumb = $("breadcrumb");
+  crumb.innerHTML = "";
+  const empty = $("empty");
+  const graph = state.graph;
+  const wrap = $("canvas-wrap");
+  const split = !!state.split;
+  $("canvas2").style.display = split ? "block" : "none";
+  wrap.classList.toggle("split", split);
+  if (!graph) {
+    $("canvas").innerHTML = "";
+    $("canvas2").innerHTML = "";
+    empty.textContent = "Run a reconstruction to render the graph.";
+    empty.style.display = "flex";
+    return;
+  }
+  const view = computeView(graph);
+  state.byId = view.byId;
+  state.kids = view.kids;
+  state.rootId = view.rootId;
+  renderBreadcrumb(view.focusId, view.byId);
+  drawPane($("canvas"), wrap, empty, state.aspects, view);
+  if (split) drawPane($("canvas2"), wrap, null, new Set([state.aspectB]), view);
 }
 
 function renderBreadcrumb(focusId, byId) {

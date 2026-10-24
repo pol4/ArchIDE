@@ -259,3 +259,9 @@ button.mini.active { border-color: var(--accent); background: #1f2a37; color: #f
 }
 .chip.active { opacity: 1; color: #0f1216; }
 .chip.locked { cursor: default; }
+
+.split-controls { display: flex; align-items: center; gap: 8px; }
+.split-controls select { width: auto; padding: 3px 6px; font-size: 11px; }
+#canvas2 { display: none; width: 50%; height: 100%; }
+#canvas-wrap.split { display: flex; }
+#canvas-wrap.split #canvas { width: 50%; }

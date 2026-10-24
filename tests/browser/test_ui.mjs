@@ -181,6 +181,31 @@ async function runViews(browser) {
   await page.close();
 }
 
+async function runSplit(browser) {
+  const page = await browser.newPage();
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+  await page.setViewport({ width: 1680, height: 1000 });
+  await page.goto(`${BASE}/?demo=aspects`, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelectorAll('#canvas > g > g').length > 0, { timeout: 15000 });
+
+  await clickNode(page, 'API');
+  await page.select('#aspect-b', 'aggregation');
+  await page.click('#split');
+  await sleep(300);
+  const bVisible = await page.$eval('#canvas2', (el) => getComputedStyle(el).display !== 'none');
+  const aNodes = await page.$$eval('#canvas > g > g', (els) => els.length);
+  const bNodes = await page.$$eval('#canvas2 > g > g', (els) => els.length);
+  check('Ф2.6b split shows two panes', bVisible && aNodes >= 1, `a=${aNodes} b=${bNodes}`);
+  check('Ф2.6b pane B shows its own aspect', bNodes >= 1, `b=${bNodes}`);
+
+  await page.click('#split');
+  await sleep(200);
+  const bHidden = await page.$eval('#canvas2', (el) => getComputedStyle(el).display === 'none');
+  check('Ф2.6b split toggles off', bHidden);
+
+  await page.close();
+}
+
 async function runLive(browser) {
   await putConfig({
     llm: { mode: 'mock', model: 'test-model' },
@@ -243,6 +268,7 @@ async function runLive(browser) {
     await runDemo(browser);
     await runAspects(browser);
     await runViews(browser);
+    await runSplit(browser);
     await runLive(browser);
   } finally {
     await browser.close();

@@ -151,6 +151,10 @@
           <button id="src-code" class="mini wide" title="only elements derived from source code">code</button>
           <button id="src-docs" class="mini wide" title="only elements derived from documentation">docs</button>
         </div>
+        <div class="split-controls">
+          <label class="toggle"><input type="checkbox" id="split" /> split</label>
+          <select id="aspect-b" title="aspect for pane B"></select>
+        </div>
         <div class="zoom-controls">
           <button id="zoom-out" class="mini" title="Zoom out (parent level)">−</button>
           <button id="zoom-in" class="mini" title="Zoom in (selected node)">+</button>
@@ -159,6 +163,7 @@
       </div>
       <div id="canvas-wrap" class="canvas-wrap">
         <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+        <svg id="canvas2" xmlns="http://www.w3.org/2000/svg"></svg>
         <div id="empty" class="empty">Run a reconstruction to render the graph.</div>
       </div>
       <div id="validation" class="validation"></div>
