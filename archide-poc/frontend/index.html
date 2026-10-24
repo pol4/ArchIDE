@@ -129,6 +129,45 @@
         <div id="view-info" class="log"></div>
       </section>
 
+      <section class="panel">
+        <h2>6 · Documents (RAG)</h2>
+        <div class="row">
+          <label class="field">
+            <span>Name</span>
+            <input id="doc_name" type="text" placeholder="reqs.md" />
+          </label>
+          <label class="field">
+            <span>Kind</span>
+            <select id="doc_kind">
+              <option value="md">md</option>
+              <option value="csv">csv</option>
+            </select>
+          </label>
+        </div>
+        <label class="field">
+          <span>User (personal history)</span>
+          <input id="doc_user" type="text" value="default" />
+        </label>
+        <label class="field">
+          <span>Content</span>
+          <textarea id="doc_content" rows="4" placeholder="- REQ-1: system must ..."></textarea>
+        </label>
+        <button id="doc-upload" class="secondary">Upload document</button>
+        <div id="doc-list" class="log"></div>
+        <label class="field">
+          <span>RAG query</span>
+          <input id="rag_query" type="text" placeholder="refunds" />
+        </label>
+        <button id="rag-search" class="secondary">Search RAG</button>
+        <div id="rag-results" class="log"></div>
+        <label class="field">
+          <span>Answer to verify</span>
+          <textarea id="rag_answer" rows="2"></textarea>
+        </label>
+        <button id="rag-verify" class="secondary">Verify grounding</button>
+        <div id="rag-ground" class="log"></div>
+      </section>
+
       <section class="panel" id="status-panel">
         <h2>Status</h2>
         <div id="status" class="status idle">Idle</div>

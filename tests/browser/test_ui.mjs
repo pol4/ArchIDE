@@ -206,6 +206,37 @@ async function runSplit(browser) {
   await page.close();
 }
 
+async function runDocs(browser) {
+  const page = await browser.newPage();
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+  await page.setViewport({ width: 1680, height: 1000 });
+  await page.goto(`${BASE}/`, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelectorAll('#agent option').length > 0, { timeout: 15000 });
+
+  await page.$eval('#doc_user', (el) => { el.value = 'e2e-user'; });
+  await page.$eval('#doc_name', (el) => { el.value = 'reqs.md'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.select('#doc_kind', 'md');
+  await page.$eval('#doc_content', (el) => { el.value = '- REQ-1: system must charge payments\n- REQ-2: refunds must be supported'; });
+  await page.click('#doc-upload');
+  await sleep(400);
+  const docList = await page.$eval('#doc-list', (el) => el.textContent);
+  check('Ф7.1 document uploaded in UI', /reqs\.md/.test(docList), docList);
+
+  await page.$eval('#rag_query', (el) => { el.value = 'refunds'; });
+  await page.click('#rag-search');
+  await sleep(400);
+  const results = await page.$eval('#rag-results', (el) => el.textContent);
+  check('Ф7.2 RAG search in UI', /refund/i.test(results), results);
+
+  await page.$eval('#rag_answer', (el) => { el.value = 'Refunds must be supported. Unicorns fly over rainbows.'; });
+  await page.click('#rag-verify');
+  await sleep(300);
+  const ground = await page.$eval('#rag-ground', (el) => el.textContent);
+  check('Ф7.4 grounding verification in UI', /unsupported:\s*1/.test(ground), ground);
+
+  await page.close();
+}
+
 async function runLive(browser) {
   await putConfig({
     llm: { mode: 'mock', model: 'test-model' },
@@ -269,6 +300,7 @@ async function runLive(browser) {
     await runAspects(browser);
     await runViews(browser);
     await runSplit(browser);
+    await runDocs(browser);
     await runLive(browser);
   } finally {
     await browser.close();

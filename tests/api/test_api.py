@@ -422,6 +422,41 @@ def main() -> int:
         remaining_runs = list(rd.glob("aaaa*.json"))
         check("Ф1.5 GC keeps the newest", len(remaining_runs) <= 2, str(len(remaining_runs)))
 
+    # Ф7 - personal documents (md/csv) + chunk markers + RAG verification
+    md = "# Requirements\n- REQ-1: system must charge payments\n- REQ-2: refunds must be supported\n"
+    st, up = req("POST", "/api/docs", {"user": "alice", "name": "reqs.md", "kind": "md", "content": md})
+    doc_id = up.get("id")
+    check("Ф7.1 document uploaded", st == 200 and bool(doc_id) and len(up.get("chunks") or []) >= 1, str(up)[:160])
+    _, lst = req("GET", "/api/docs?user=alice")
+    check("Ф7.1 document in personal history", any(d.get("id") == doc_id for d in (lst.get("docs") or [])), str(lst)[:160])
+    _, other = req("GET", "/api/docs?user=bob")
+    check("Ф7.1 personal history isolated", not any(d.get("id") == doc_id for d in (other.get("docs") or [])))
+    st, doc = req("GET", f"/api/docs/{doc_id}?user=alice")
+    check("Ф7.1 original retrievable", st == 200 and "REQ-1" in (doc.get("content") or ""))
+
+    st, res = req("POST", "/api/rag/search", {"user": "alice", "query": "refunds"})
+    hits = res.get("results") or []
+    check("Ф7.2 RAG finds a relevant chunk",
+          st == 200 and len(hits) >= 1 and "refund" in hits[0]["text"].lower(), str(hits[:1])[:160])
+
+    marker = (hits[0].get("marker") if hits else None)
+    st, ver = req("POST", "/api/markers/verify", {"marker": marker})
+    check("Ф7.3 chunk marker verifies", st == 200 and ver.get("valid") is True, str(ver))
+    tampered = dict(marker or {})
+    tampered["chunk"] = int(tampered.get("chunk", 0)) + 99
+    st, ver2 = req("POST", "/api/markers/verify", {"marker": tampered})
+    check("Ф7.3 tampered marker rejected", ver2.get("valid") is False, str(ver2))
+
+    st, g = req("POST", "/api/rag/verify",
+                {"answer": "System must charge payments. Unicorns fly over rainbows.", "chunks": [hits[0]] if hits else []})
+    check("Ф7.4 grounding separates supported vs generated",
+          st == 200 and len(g.get("supported") or []) >= 1 and len(g.get("unsupported") or []) >= 1,
+          str({k: len(v) for k, v in (g or {}).items() if isinstance(v, list)}))
+
+    st, rq = req("POST", f"/api/docs/{doc_id}/requirements?user=alice")
+    rids = [r.get("id") for r in (rq.get("requirements") or [])]
+    check("Ф7.5 requirements extracted from document", st == 200 and any("REQ-1" in str(r) for r in rids), str(rids))
+
     # restore a sane config
     put_config({"llm": {"mode": "mock"}, "agent": {"runner": "local"}, "context": {"compare_docs": False}})
 

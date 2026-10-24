@@ -22,6 +22,8 @@ from urllib.parse import parse_qs, unquote, urlparse
 from backend import agents, analysis, gateway, maintenance, metamodel, model_store, runtime, sandbox
 from backend import slice as slice_mod
 from backend.extract import extract_aspects
+from backend import docs as docs_mod
+from backend import markers as markers_mod
 from backend.merge import candidates
 from backend.evaluate import evaluate
 from backend import config as config_mod
@@ -36,6 +38,7 @@ _SANDBOX_RE = re.compile(r"^/sandbox/(repo|meta|event|result|validate)/([0-9a-f]
 _RUN_RE = re.compile(r"^/api/runs/([0-9a-f]+)(/cancel)?$")
 _MODEL_RE = re.compile(r"^/api/models(?:/([A-Za-z0-9._-]+))?$")
 _MODEL_SUB_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(aggregations|coverage|slice)$")
+_DOC_RE = re.compile(r"^/api/docs/([0-9a-f]+)(/requirements)?$")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -110,6 +113,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"audit": gateway.audit_tail()})
         if route == "/api/runs":
             return self._json(200, {"runs": runs.list_runs()})
+        if route == "/api/docs":
+            return self._json(200, {"docs": docs_mod.list_docs(query.get("user", "default"))})
+        match_doc = _DOC_RE.match(route)
+        if match_doc and not match_doc.group(2):
+            doc = docs_mod.load_doc(query.get("user", "default"), match_doc.group(1))
+            if doc is None:
+                return self._json(404, {"detail": "unknown document"})
+            return self._json(200, doc)
         if route == "/api/metamodel":
             payload = metamodel.registry()
             payload["registry_errors"] = registry_errors()
@@ -186,6 +197,41 @@ class Handler(BaseHTTPRequestHandler):
             return self._reconstruct()
         if route == "/api/slice":
             return self._slice(None)
+        if route == "/api/docs":
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            record = docs_mod.ingest(config_mod.load_config(), str(body.get("user") or "default"),
+                                     str(body.get("name") or "document.md"), str(body.get("kind") or "md"),
+                                     str(body.get("content") or ""))
+            return self._json(200, {"id": record["id"], "name": record["name"], "kind": record["kind"],
+                                    "chunks": record["chunks"]})
+        if route == "/api/rag/search":
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            return self._json(200, {"results": docs_mod.search(str(body.get("user") or "default"),
+                                                               str(body.get("query") or ""), int(body.get("top", 5)))})
+        if route == "/api/rag/verify":
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            return self._json(200, docs_mod.verify_grounding(str(body.get("answer") or ""), body.get("chunks") or []))
+        if route == "/api/markers/verify":
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            return self._json(200, {"valid": markers_mod.verify(config_mod.load_config(), body.get("marker"))})
+        match_req = _DOC_RE.match(route)
+        if match_req and match_req.group(2) == "/requirements":
+            result = docs_mod.extract_requirements(config_mod.load_config(), query.get("user", "default"), match_req.group(1))
+            if result is None:
+                return self._json(404, {"detail": "unknown document"})
+            return self._json(200, result)
         if route == "/api/merge/candidates":
             try:
                 body = self._read_json()

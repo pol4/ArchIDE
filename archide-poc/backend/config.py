@@ -65,6 +65,10 @@ DEFAULT_CONFIG = {
     "repo": {
         "last": "",
     },
+    "markers": {
+        # HMAC key for signing chunk markers; generated on first use
+        "key": "",
+    },
     "context": {
         # hard cap on the uploaded context size (characters)
         "max_chars": 400000,

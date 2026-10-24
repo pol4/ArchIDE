@@ -75,6 +75,7 @@ const state = {
   config: null, agents: [], runId: null, since: 0, poll: null, saveTimer: null,
   graph: null, fullGraph: null, focus: null, selected: null, byId: null, kids: null, rootId: null,
   sourceMode: "all", aspects: new Set(["structure"]), split: false, aspectB: "interface",
+  ragHits: [],
 };
 
 async function api(path, options) {
@@ -352,6 +353,10 @@ function wireControls() {
   });
   $("split").addEventListener("change", () => { state.split = $("split").checked; render(); });
   $("aspect-b").addEventListener("change", () => { state.aspectB = $("aspect-b").value; render(); });
+  $("doc-upload").addEventListener("click", uploadDoc);
+  $("rag-search").addEventListener("click", ragSearch);
+  $("rag-verify").addEventListener("click", ragVerify);
+  loadDocs();
 }
 
 // Offline demo mode (no server): load demo.json and render a completed run.
@@ -401,6 +406,74 @@ function setSourceMode(mode) {
     $(id).classList.toggle("active", m === mode);
   });
   render();
+}
+
+function currentUser() {
+  return ($("doc_user").value || "default").trim() || "default";
+}
+
+async function loadDocs() {
+  try {
+    const res = await api(`/api/docs?user=${encodeURIComponent(currentUser())}`);
+    const docs = res.docs || [];
+    $("doc-list").textContent = docs.length
+      ? docs.map((d) => `${d.name} (${d.chunks} chunks)`).join("\n")
+      : "no documents";
+  } catch (e) {
+    $("doc-list").textContent = "docs: " + e.message;
+  }
+}
+
+async function uploadDoc() {
+  const body = {
+    user: currentUser(),
+    name: $("doc_name").value.trim() || "document.md",
+    kind: $("doc_kind").value,
+    content: $("doc_content").value,
+  };
+  try {
+    const res = await api("/api/docs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    $("doc_name").value = "";
+    $("doc_content").value = "";
+    await loadDocs();
+    setStatus(`document indexed: ${(res.chunks || []).length} chunks`, "ok");
+  } catch (e) {
+    setStatus("upload failed: " + e.message, "error");
+  }
+}
+
+async function ragSearch() {
+  try {
+    const res = await api("/api/rag/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user: currentUser(), query: $("rag_query").value.trim() }),
+    });
+    state.ragHits = res.results || [];
+    $("rag-results").textContent = state.ragHits.length
+      ? state.ragHits.map((h) => `[${h.score}] ${h.name}#${h.chunk}: ${h.text}`).join("\n")
+      : "no results";
+  } catch (e) {
+    $("rag-results").textContent = "search failed: " + e.message;
+  }
+}
+
+async function ragVerify() {
+  try {
+    const res = await api("/api/rag/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answer: $("rag_answer").value, chunks: state.ragHits || [] }),
+    });
+    $("rag-ground").textContent =
+      `grounded: ${res.grounded} | supported: ${(res.supported || []).length} | unsupported: ${(res.unsupported || []).length}`;
+  } catch (e) {
+    $("rag-ground").textContent = "verify failed: " + e.message;
+  }
 }
 
 async function loadVolumeInfo() {
