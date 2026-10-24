@@ -100,6 +100,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, config_mod.load_config())
         if route == "/api/volume":
             return self._volume_info()
+        if route == "/api/gateway":
+            return self._json(200, gateway.info(config_mod.load_config()))
+        if route == "/api/gateway/audit":
+            return self._json(200, {"audit": gateway.audit_tail()})
         if route == "/api/metamodel":
             payload = metamodel.registry()
             payload["registry_errors"] = registry_errors()
@@ -178,6 +182,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._validate()
         if route == "/api/volume/reset":
             return self._volume_reset()
+        if route == "/api/gateway/lease":
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            return self._json(200, gateway.issue_lease(config_mod.load_config(), str(body.get("agent") or "builtin")))
         if route == "/llm/v1/chat/completions":
             return self._llm_chat()
 
@@ -294,19 +304,23 @@ class Handler(BaseHTTPRequestHandler):
 
     def _llm_chat(self) -> None:
         cfg = config_mod.load_config()
-        if not gateway.authorized(cfg, self.headers):
-            return self._json(401, {"error": {"message": "invalid gateway token"}})
+        ok, principal, err = gateway.consume(cfg, self.headers)
+        if not ok:
+            return self._json(err, {"error": {"message": "gateway auth or quota exceeded"}})
         body = self._read_body()
         try:
-            wants_stream = bool(json.loads(body or b"{}").get("stream"))
+            parsed = json.loads(body or b"{}")
         except json.JSONDecodeError:
             return self._json(400, {"error": {"message": "invalid JSON"}})
+        model = parsed.get("model")
 
-        if wants_stream:
+        if parsed.get("stream"):
             status, ctype, chunks = gateway.stream_chat(cfg, body)
+            gateway.record(cfg, {"principal": principal, "model": model, "stream": True, "status": status})
             return self._stream(status, ctype, chunks)
 
         status, ctype, data = gateway.forward_chat(cfg, body)
+        gateway.record(cfg, {"principal": principal, "model": model, "stream": False, "status": status})
         return self._bytes(status, ctype, data)
 
     def _stream(self, status: int, content_type: str, chunks) -> None:

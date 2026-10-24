@@ -208,7 +208,8 @@ def _run_docker(agent, prompt, constraints, repo_name, files, cfg, run, emit) ->
     if not runtime.PUBLIC_BASE:
         raise RuntimeError("server public base URL is not set; start via server.py")
 
-    gw_token = gateway.ensure_token(cfg)
+    gateway.ensure_token(cfg)  # master token exists
+    gw_token = gateway.issue_lease(cfg, agent["id"])["token"]  # container gets a lease
     llm = cfg.get("llm", {})
     job_id, job_token = sandbox.create_job(
         files, prompt, constraints, repo_name, agent["id"],

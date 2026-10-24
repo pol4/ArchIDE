@@ -57,6 +57,9 @@ DEFAULT_CONFIG = {
         # empty -> generated on first use and persisted
         "token": "",
         "enabled": True,
+        # per-lease request quota (0 = unlimited) and lease TTL in seconds
+        "quota_per_lease": 0,
+        "lease_ttl": 3600,
     },
     "repo": {
         "last": "",

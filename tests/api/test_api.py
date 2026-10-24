@@ -222,6 +222,10 @@ def main() -> int:
               argv[:200])
         check("Ф1.2 run meta records limits", bool((snap.get("meta") or {}).get("limits")),
               str((snap.get("meta") or {}).get("limits")))
+        _, cfg_now = req("GET", "/api/config")
+        master = (cfg_now.get("gateway") or {}).get("token") or ""
+        check("Ф1.3 container gets a lease, not the master token",
+              bool(master) and master not in argv, "master token leaked into the container")
 
     # gateway auth
     status, _ = req("POST", "/llm/v1/chat/completions", {"model": "m", "messages": []})
@@ -229,6 +233,32 @@ def main() -> int:
     status, _ = req("POST", "/llm/v1/chat/completions", {"model": "m", "messages": []},
                     headers={"Authorization": "Bearer wrong"})
     check("gateway rejects wrong token (401)", status == 401, str(status))
+
+    # Ф1.3 - gateway leases / audit / per-lease quota
+    _, gw = req("GET", "/api/gateway")
+    check("Ф1.3 gateway info exposed", "quota_per_lease" in gw and "leases_active" in gw, str(gw))
+    _, cfg_g = req("GET", "/api/config")
+    master = (cfg_g.get("gateway") or {}).get("token") or ""
+    st, lease = req("POST", "/api/gateway/lease", {"agent": "builtin"})
+    lease_token = lease.get("token")
+    check("Ф1.3 lease issued", st == 200 and bool(lease_token), str(lease))
+    check("Ф1.3 lease token differs from master", bool(lease_token) and lease_token != master)
+    st_ok, _ = req("POST", "/llm/v1/chat/completions", {"model": "m", "messages": []},
+                   headers={"Authorization": "Bearer " + str(lease_token)})
+    check("Ф1.3 lease token authenticates (not 401)", st_ok != 401, str(st_ok))
+    _, audit = req("GET", "/api/gateway/audit")
+    entries = audit.get("audit") or []
+    check("Ф1.3 audit recorded", len(entries) >= 1, str(entries[:1]))
+    check("Ф1.3 audit carries no secrets", all("api_key" not in json.dumps(e) for e in entries))
+    check("Ф1.3 audit attributes the principal", any(e.get("principal") for e in entries), str(entries[:1]))
+
+    put_config({"gateway": {"quota_per_lease": 1}})
+    _, lease2 = req("POST", "/api/gateway/lease", {"agent": "builtin"})
+    t2 = str(lease2.get("token"))
+    r1, _ = req("POST", "/llm/v1/chat/completions", {"model": "m", "messages": []}, headers={"Authorization": "Bearer " + t2})
+    r2, _ = req("POST", "/llm/v1/chat/completions", {"model": "m", "messages": []}, headers={"Authorization": "Bearer " + t2})
+    check("Ф1.3 per-lease quota enforced (429 on 2nd)", r1 != 401 and r2 == 429, f"first={r1} second={r2}")
+    put_config({"gateway": {"quota_per_lease": 0}})
 
     # S5 - cancel a running (docker-path) run
     if STUB_STATE:

@@ -1,22 +1,27 @@
-"""ArchIDE LLM gateway.
+"""ArchIDE LLM gateway (Ф1.3).
 
-A small OpenAI-compatible proxy that all sandbox agents talk to. Agents carry a
-single **gateway token** (shared, owned by ArchIDE); the gateway validates it and
-injects the **real** upstream key (``llm.api_key``) when calling the actual LLM
-inference. The real key never reaches the agents.
+Agents authenticate with a short-lived **lease** token (issued per run/agent); the
+gateway validates it (or the master token) and injects the **real** upstream key.
+Every request is **audited** (principal, model, status) without secrets, and a
+per-lease **quota** can be enforced.
 """
 from __future__ import annotations
 
 import json
 import secrets
+import time
 import urllib.error
 import urllib.request
 
 from . import config as config_mod
 
+_leases: dict[str, dict] = {}
+_audit: list[dict] = []
+_AUDIT_MAX = 200
+
 
 def ensure_token(cfg: dict) -> str:
-    """Return the gateway token, generating and persisting one if missing."""
+    """Return the master gateway token, generating and persisting one if missing."""
     token = (cfg.get("gateway") or {}).get("token") or ""
     if not token:
         token = "archgw-" + secrets.token_hex(16)
@@ -24,22 +29,90 @@ def ensure_token(cfg: dict) -> str:
     return token
 
 
-def _opener() -> urllib.request.OpenerDirector:
-    return urllib.request.build_opener(urllib.request.ProxyHandler({}))
+def issue_lease(cfg: dict, agent_id: str) -> dict:
+    token = "archlease-" + secrets.token_hex(16)
+    ttl = int((cfg.get("gateway") or {}).get("lease_ttl", 3600) or 3600)
+    _leases[token] = {"agent": agent_id, "expires": time.time() + ttl, "used": 0}
+    return {"token": token, "agent": agent_id, "expires": _leases[token]["expires"]}
+
+
+def _lease(token: str) -> dict | None:
+    lease = _leases.get(token)
+    if not lease:
+        return None
+    if lease["expires"] < time.time():
+        _leases.pop(token, None)
+        return None
+    return lease
+
+
+def _supplied_token(headers) -> str:
+    auth = headers.get("Authorization", "") or ""
+    if auth.lower().startswith("bearer "):
+        return auth[7:].strip()
+    return headers.get("X-OpenAI-Api-Key", "") or headers.get("X-Api-Key", "") or ""
+
+
+def authorize(cfg: dict, headers) -> tuple[bool, str | None]:
+    """Return (ok, principal) where principal is ``"master"`` or an agent id."""
+    expected = (cfg.get("gateway") or {}).get("token") or ""
+    supplied = _supplied_token(headers)
+    if expected and supplied == expected:
+        return True, "master"
+    lease = _lease(supplied) if supplied else None
+    if lease:
+        return True, lease["agent"]
+    return False, None
 
 
 def authorized(cfg: dict, headers) -> bool:
-    expected = (cfg.get("gateway") or {}).get("token") or ""
-    if not expected:
-        return False
-    auth = headers.get("Authorization", "")
-    if auth.lower().startswith("bearer ") and auth[7:].strip() == expected:
-        return True
-    if headers.get("X-OpenAI-Api-Key", "") == expected:
-        return True
-    if headers.get("X-Api-Key", "") == expected:
-        return True
-    return False
+    return authorize(cfg, headers)[0]
+
+
+def consume(cfg: dict, headers) -> tuple[bool, str | None, int]:
+    """Authorize + enforce the per-lease quota. Returns (ok, principal, error_status)."""
+    ok, principal = authorize(cfg, headers)
+    if not ok:
+        return False, None, 401
+    lease = _lease(_supplied_token(headers))
+    if lease:
+        quota = int((cfg.get("gateway") or {}).get("quota_per_lease", 0) or 0)
+        if quota and lease["used"] >= quota:
+            return False, principal, 429
+        lease["used"] += 1
+    return True, principal, 0
+
+
+def record(cfg: dict, entry: dict) -> None:
+    item = {"ts": round(time.time(), 3)}
+    item.update(entry)
+    _audit.append(item)
+    del _audit[:-_AUDIT_MAX]
+    try:
+        config_mod.DATA_DIR.mkdir(parents=True, exist_ok=True)
+        with (config_mod.DATA_DIR / "gateway-audit.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(item, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
+def info(cfg: dict) -> dict:
+    gw = cfg.get("gateway") or {}
+    return {
+        "enabled": bool(gw.get("enabled", True)),
+        "quota_per_lease": int(gw.get("quota_per_lease", 0) or 0),
+        "lease_ttl": int(gw.get("lease_ttl", 3600) or 3600),
+        "leases_active": len(_leases),
+        "audit": len(_audit),
+    }
+
+
+def audit_tail(n: int = 50) -> list[dict]:
+    return _audit[-n:]
+
+
+def _opener() -> urllib.request.OpenerDirector:
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
 def upstream_url(cfg: dict) -> str:
