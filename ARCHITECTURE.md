@@ -40,6 +40,7 @@ graph LR
 ```mermaid
 graph TD
   UI["Web UI (SPA):<br/>аспекты, канвас, timeline"]
+  EDIT["Agent Editor (chat):<br/>транзакции, вопросы, impact, диф"]
   API["API / Orchestrator"]
   MS["Model Store:<br/>граф + версии (CAS)"]
   VAL["Validator /<br/>Constraint Engine"]
@@ -52,6 +53,10 @@ graph TD
   REG["Registry:<br/>требования, контракты, алиасы"]
 
   UI --> API
+  UI --> EDIT
+  EDIT --> API
+  EDIT --> VAL
+  EDIT --> MS
   API --> MS
   API --> VAL
   API --> PROJ
@@ -83,6 +88,17 @@ graph TD
 - `Schema validator` (жёсткие инварианты), `Referential actions`
   (cascade/restrict/nullify/repoint), `Cross-aspect rules`, `Constraint language`,
   `Impact analyzer`, `Incremental validator`.
+
+**Agent Editor (chat)**
+- `Intent→transaction` — перевод намерения пользователя в транзакцию правок.
+- `Clarifying questions` — уточняющие вопросы при неоднозначности.
+- `Impact advisor` — предупреждения о последствиях (impact, нарушения инвариантов,
+  потеря покрытия требований).
+- `Diff proposer` — семантический диф на подтверждение.
+- `Consistency reviewer` — **после ручных правок** человека проверяет граф и
+  **предлагает исправления** для сохранения непротиворечивости/целостности.
+- Работает через `Agent Sandbox Runtime` + `LLM Gateway`; опирается на `Validator` и
+  `Model Store`. Оба режима (чат и ручное редактирование) проходят через один gate.
 
 **Projection Engine**
 - `Layout engine`, `Aspect renderers` (C4/DFD/state/BPMN/роли/…),
@@ -127,8 +143,9 @@ graph TD
 (проход 1: код; проход 2: документация) → validate (хост+агент, repair) → merge
 (отклонения) → **commit** в модель.
 
-**6.2 Редактирование:** UI-правка → **транзакция** → incremental validate → impact →
-commit или блок с причиной (referential actions).
+**6.2 Ручное редактирование (человек):** UI-правка → **транзакция** → incremental
+validate → impact → commit или блок с причиной (referential actions); далее
+**агент-ревьюер** проверяет граф и **предлагает исправления** (диф на подтверждение).
 
 **6.3 Генерация/верификация:** slice → выдача **меток (lease)** → агент →
 артефакты → **conformance gate** (подпись/размещение/покрытие/атрибуция) → привязка
@@ -139,6 +156,11 @@ commit или блок с причиной (referential actions).
 
 **6.5 Федерация:** publish контракта → GCR → discovery → федеративные рёбра →
 derived-требования/тесты (§14).
+
+**6.6 Диалоговое редактирование (агент, основной сценарий):** чат-намерение →
+уточняющие вопросы → транзакция правок + impact-предупреждения → **семантический
+диф** на подтверждение → применение + авто-починка зависимых частей → commit (gate).
+По запросу — кастомные аспекты/срезы/представления.
 
 ```mermaid
 sequenceDiagram
@@ -253,7 +275,7 @@ graph LR
 | §7 требования | Registry, Document Ingestion, RAG |
 | §8 строгость/инварианты | Validator / Constraint Engine |
 | §9 реконструкция | Sandbox Runtime, Projection Engine |
-| §10 редактирование/impact | Validator (transactions, impact), API |
+| §10 редактирование/impact, диалог с агентом | Validator (transactions, impact), Agent Editor (chat), API |
 | §11 генерация/метки | Artifact/CI (issuer/verifier) |
 | §12 версионность/time-travel | Model Store (Version Store), Web UI (timeline) |
 | §13 RAG | RAG/Index, Document Ingestion, Registry |
