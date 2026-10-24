@@ -60,7 +60,7 @@ def ingest(cfg: dict, user: str, name: str, kind: str, content: str) -> dict:
     texts = _chunk_csv(content) if kind == "csv" else _chunk_md(content)
     chunks = []
     for index, text in enumerate(texts):
-        marker = markers.sign(cfg, {"doc": doc_id, "chunk": index, "version": 1, "user": user, "span": [0, len(text)]})
+        marker = markers.sign(cfg, {"doc": doc_id, "chunk": index, "version": 1, "user": user, "span": [0, len(text)]}, text=text)
         chunks.append({"index": index, "text": text, "marker": marker})
     record = {
         "id": doc_id, "user": user, "name": name, "kind": kind, "version": 1,
@@ -111,19 +111,52 @@ def search(user: str, query: str, top: int = 5) -> list[dict]:
     return scored[:max(1, int(top))]
 
 
+def _norm(text) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(text or "").lower())
+
+
+def _fidelity(claim_tokens: set, chunk_tokens: set, claim_norm: str, chunk_norm: str) -> str:
+    if claim_norm and claim_norm in chunk_norm:
+        return "verbatim"
+    if not claim_tokens:
+        return "empty"
+    ratio = len(claim_tokens & chunk_tokens) / len(claim_tokens)
+    if ratio >= 0.6:
+        return "paraphrase"
+    if len(claim_tokens & chunk_tokens) >= 2:
+        return "derived"
+    return "unsupported"
+
+
 def verify_grounding(answer: str, chunks: list[dict]) -> dict:
-    corpus = _tokens(" ".join(str(c.get("text", "")) for c in (chunks or [])))
-    supported, unsupported = [], []
+    """Claim-level attribution with fidelity against marked chunks (Ф7.4/Ф7.6)."""
+    claims: list[dict] = []
     for sentence in _SENT.findall(answer or ""):
         text = sentence.strip()
         if not text:
             continue
-        tokens = _tokens(text)
-        if tokens and len(tokens & corpus) >= 2:
-            supported.append(text)
-        else:
-            unsupported.append(text)
-    return {"supported": supported, "unsupported": unsupported, "grounded": not unsupported}
+        claim_tokens = _tokens(text)
+        best = None
+        for chunk in (chunks or []):
+            shared = claim_tokens & _tokens(chunk.get("text", ""))
+            if best is None or len(shared) > best["score"]:
+                best = {"score": len(shared), "chunk": chunk, "shared": shared}
+        if not best or best["score"] == 0:
+            claims.append({"text": text, "fidelity": "unsupported", "source": None,
+                           "added": sorted(claim_tokens), "omitted": []})
+            continue
+        chunk = best["chunk"]
+        chunk_tokens = _tokens(chunk.get("text", ""))
+        claims.append({
+            "text": text,
+            "fidelity": _fidelity(claim_tokens, chunk_tokens, _norm(text), _norm(chunk.get("text", ""))),
+            "source": {"doc": chunk.get("doc"), "chunk": chunk.get("chunk"), "marker": chunk.get("marker")},
+            "added": sorted(claim_tokens - chunk_tokens),
+            "omitted": sorted(chunk_tokens - claim_tokens),
+        })
+    supported = [c["text"] for c in claims if c["fidelity"] != "unsupported"]
+    unsupported = [c["text"] for c in claims if c["fidelity"] == "unsupported"]
+    return {"claims": claims, "supported": supported, "unsupported": unsupported, "grounded": not unsupported}
 
 
 def extract_requirements(cfg: dict, user: str, doc_id: str) -> dict | None:

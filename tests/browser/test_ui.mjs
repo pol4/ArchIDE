@@ -246,6 +246,7 @@ async function runDocs(browser) {
   await sleep(300);
   const ground = await page.$eval('#rag-ground', (el) => el.textContent);
   check('Ф7.4 grounding verification in UI', /unsupported:\s*1/.test(ground), ground);
+  check('Ф7.6 per-claim fidelity shown', /(verbatim|paraphrase|derived|unsupported)/.test(ground), ground);
 
   await page.close();
 }

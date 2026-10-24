@@ -106,7 +106,8 @@
 | Ф7.1 ✅ | Загрузка md/csv + личное хранилище | `backend/docs.py` (per-user `data/users/<user>/docs`), API `/api/docs`; UI-панель «Documents (RAG)» | API + браузер | документ загружен и сохранён |
 | Ф7.2 ✅ | Ingestion + RAG-поиск | chunking (md по абзацам, csv по строкам) + keyword-retrieval; API `/api/rag/search` | API + браузер | документ находится в RAG |
 | Ф7.3 ✅ | Метки чанков | `backend/markers.py` (HMAC-подпись), метка на каждый чанк; API `/api/markers/verify` | API | чанки промаркированы и проверяемы |
-| Ф7.4 ✅ | Маркерная верификация ответов | `verify_grounding` — supported/unsupported по маркированным чанкам; API `/api/rag/verify` | API + браузер | неподтверждённое помечается |
+| Ф7.3b ✅ | Метки, привязанные к **содержимому** | подпись включает `text_hash` чанка; `verify_content`; API `/api/markers/verify` с `text` | API | изменение текста чанка детектируется |
+| Ф7.4 ✅ | Поклеймовая верификация | `verify_grounding` → **claims** с fidelity (`verbatim/paraphrase/derived/unsupported`) + `added/omitted` (что изменено LLM); API `/api/rag/verify` | API + браузер | видно, что восстановлено, а что сгенерировано/изменено |
 | Ф7.5 ✅ | Требования из документов | `extract_requirements` (md-буллеты/csv-строки → `Requirement`); API `/api/docs/{id}/requirements` | API | требования из доков извлекаются |
 | Ф7.6 ⬜ | **RAG-генерация (полная обработка запроса)** | запрос + найденные **маркированные** чанки → **LLM** (через шлюз/песочницу) → заземлённый ответ с цитатами; верификация ответа по меткам; неподтверждённое помечается | API + браузер | агент отвечает, опираясь на RAG-чанки, а не только ищет |
 

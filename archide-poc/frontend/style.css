@@ -371,3 +371,9 @@ button.mini.active { border-color: var(--accent); background: #1f2a37; color: #f
   color: var(--muted);
   white-space: pre-wrap;
 }
+
+#rag-ground .claim { font-size: 11px; }
+#rag-ground .claim.verbatim { color: var(--ok); }
+#rag-ground .claim.paraphrase { color: #9ccc65; }
+#rag-ground .claim.derived { color: var(--warn); }
+#rag-ground .claim.unsupported { color: var(--err); }

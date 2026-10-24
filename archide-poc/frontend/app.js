@@ -486,8 +486,19 @@ async function ragVerify() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ answer: $("rag_answer").value, chunks: state.ragHits || [] }),
     });
-    $("rag-ground").textContent =
-      `grounded: ${res.grounded} | supported: ${(res.supported || []).length} | unsupported: ${(res.unsupported || []).length}`;
+    const el = $("rag-ground");
+    el.innerHTML = "";
+    const summary = document.createElement("div");
+    summary.textContent = `grounded: ${res.grounded} | supported: ${(res.supported || []).length} | unsupported: ${(res.unsupported || []).length}`;
+    el.appendChild(summary);
+    (res.claims || []).forEach((c) => {
+      const div = document.createElement("div");
+      div.className = "claim " + (c.fidelity || "log");
+      const src = c.source ? ` [${c.source.doc}#${c.source.chunk}]` : "";
+      const changed = c.added && c.added.length ? ` (+${c.added.length} new)` : "";
+      div.textContent = `${c.fidelity}${src}: ${c.text}${changed}`;
+      el.appendChild(div);
+    });
   } catch (e) {
     $("rag-ground").textContent = "verify failed: " + e.message;
   }

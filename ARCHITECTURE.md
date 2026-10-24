@@ -161,8 +161,9 @@ graph TD
 **RAG / Index Service**
 - `Chunker`, `Embedder`, `Vector index`, `Graph retriever`, `Hybrid ranker`,
   `Provenance/citations`, `Doc↔model comparator`,
-  **`Marker-based grounding verifier`** — отличает реально восстановленные чанки от
-  сгенерированного LLM по подписанным меткам (Ф7.4).
+  **`Marker-based grounding verifier`** — поклеймовая атрибуция: источник (метка чанка) +
+  **fidelity** (`verbatim/paraphrase/derived/unsupported`) и `added/omitted` (что изменено
+  LLM); метки **привязаны к содержимому** (дайджест текста чанка).
 
 **Document Ingestion**
 - `Connectors` (Confluence/Wiki/файлы, **Markdown/CSV из чата**), `Parser`, `Chunker`,

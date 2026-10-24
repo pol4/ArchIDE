@@ -457,6 +457,25 @@ def main() -> int:
     rids = [r.get("id") for r in (rq.get("requirements") or [])]
     check("Ф7.5 requirements extracted from document", st == 200 and any("REQ-1" in str(r) for r in rids), str(rids))
 
+    # Ф7.3b/Ф7.6 - content-bound markers + claim-level fidelity
+    _, up2 = req("POST", "/api/docs", {"user": "alice", "name": "cb.md", "kind": "md",
+                                       "content": "- REQ-9: payments must be idempotent\n"})
+    chunk0 = (up2.get("chunks") or [{}])[0]
+    marker0 = chunk0.get("marker")
+    text0 = chunk0.get("text")
+    st, v = req("POST", "/api/markers/verify", {"marker": marker0, "text": text0})
+    check("Ф7.3b marker bound to content verifies", st == 200 and v.get("valid") is True and v.get("content_ok") is True, str(v))
+    st, v = req("POST", "/api/markers/verify", {"marker": marker0, "text": text0 + " ALTERED"})
+    check("Ф7.3b altered chunk content is detected", v.get("valid") is True and v.get("content_ok") is False, str(v))
+
+    st, g2 = req("POST", "/api/rag/verify",
+                 {"answer": "Payments must be idempotent. Unicorns fly over rainbows.", "chunks": [chunk0]})
+    claims = g2.get("claims") or []
+    fids = [c.get("fidelity") for c in claims]
+    check("Ф7.6 claim-level fidelity computed", st == 200 and "verbatim" in fids and "unsupported" in fids, str(fids))
+    un = next((c for c in claims if c.get("fidelity") == "unsupported"), {})
+    check("Ф7.6 changed/generated parts reported", bool(un.get("added")), str(un.get("added")))
+
     # Ф4.1-Ф4.3 - edit transactions + gate + referential actions + impact
     base_model = {"nodes": [
         {"id": "sys://m", "type": "System", "parent": None, "evidence": ["a"]},

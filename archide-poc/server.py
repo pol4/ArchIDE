@@ -261,7 +261,12 @@ class Handler(BaseHTTPRequestHandler):
                 body = self._read_json()
             except json.JSONDecodeError as exc:
                 return self._json(400, {"detail": f"invalid JSON: {exc}"})
-            return self._json(200, {"valid": markers_mod.verify(config_mod.load_config(), body.get("marker"))})
+            cfg = config_mod.load_config()
+            marker = body.get("marker")
+            result = {"valid": markers_mod.verify(cfg, marker)}
+            if body.get("text") is not None:
+                result["content_ok"] = markers_mod.verify_content(cfg, marker, body.get("text"))
+            return self._json(200, result)
         match_req = _DOC_RE.match(route)
         if match_req and match_req.group(2) == "/requirements":
             result = docs_mod.extract_requirements(config_mod.load_config(), query.get("user", "default"), match_req.group(1))
