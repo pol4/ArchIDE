@@ -563,6 +563,25 @@ def main() -> int:
                  "operations": [{"op": "update_node", "id": "component://o/a", "patch": {"name": "Y"}}]})
     check("Ф4.5 matching hash allows the edit", st == 200 and r.get("ok") is True, str(r)[:140])
 
+    # Ф4.9/Ф4.10 - agent reviewer + reconciler
+    rv = {"nodes": [
+        {"id": "sys://rv", "type": "System", "parent": None, "evidence": ["a"]},
+        {"id": "component://rv/a", "type": "Component", "parent": "sys://rv"},
+    ], "edges": []}
+    req("PUT", "/api/models/rmodel", {"graph": rv})
+    st, r = req("POST", "/api/models/rmodel/review")
+    kinds = [i.get("kind") for i in (r.get("issues") or [])]
+    check("Ф4.9 reviewer finds integrity issues", st == 200 and "missing_evidence" in kinds, str(kinds))
+
+    st, r = req("POST", "/api/models/cmodel/review")
+    props = r.get("proposals") or []
+    check("Ф4.9 reviewer proposes fixes", st == 200 and any(p.get("op") == "remove_edge" for p in props), str(props)[:160])
+
+    st, r = req("POST", "/api/models/cmodel/reconcile", {"apply": True})
+    conv = r.get("convergence") or {}
+    check("Ф4.10 reconciler reduces divergences",
+          st == 200 and conv.get("before", 0) >= 1 and conv.get("after", 99) < conv.get("before", 0), str(conv))
+
     # restore a sane config
     put_config({"llm": {"mode": "mock"}, "agent": {"runner": "local"}, "context": {"compare_docs": False}})
 

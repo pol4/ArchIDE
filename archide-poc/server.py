@@ -21,6 +21,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from backend import agents, analysis, gateway, maintenance, metamodel, model_store, runtime, sandbox
 from backend import constraints as constraints_mod
+from backend import review as review_mod
 from backend import slice as slice_mod
 from backend.extract import extract_aspects
 from backend import docs as docs_mod
@@ -41,7 +42,7 @@ _RUN_RE = re.compile(r"^/api/runs/([0-9a-f]+)(/cancel)?$")
 _MODEL_RE = re.compile(r"^/api/models(?:/([A-Za-z0-9._-]+))?$")
 _MODEL_SUB_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(aggregations|coverage|slice|constraints|validate)$")
 _DOC_RE = re.compile(r"^/api/docs/([0-9a-f]+)(/requirements)?$")
-_EDIT_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(edit|impact)$")
+_EDIT_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(edit|impact|review|reconcile)$")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -232,6 +233,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(400, {"detail": f"invalid JSON: {exc}"})
             if match_edit.group(2) == "impact":
                 return self._json(200, {"impacted": edit_mod.impacted(model, str(body.get("node") or ""))})
+            if match_edit.group(2) == "review":
+                return self._json(200, review_mod.review(model))
+            if match_edit.group(2) == "reconcile":
+                apply_fixes = bool(body.get("apply"))
+                result = review_mod.reconcile(model, apply_fixes)
+                if apply_fixes and result.get("model"):
+                    _, digest = model_store.save_model(result.pop("model"), config_mod.MODELS_DIR, match_edit.group(1))
+                    result["hash"] = digest
+                return self._json(200, result)
             operations = body.get("operations") or []
             editor = str(body.get("user") or "default")
             expected = body.get("expected_hash")
