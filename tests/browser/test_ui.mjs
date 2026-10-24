@@ -7,6 +7,8 @@ import path from 'path';
 import { existsSync } from 'fs';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
+import os from 'os';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -218,23 +220,25 @@ async function runDocs(browser) {
   await page.goto(`${BASE}/`, { waitUntil: 'load' });
   await page.waitForFunction(() => document.querySelectorAll('#agent option').length > 0, { timeout: 15000 });
 
+  const tmp = path.join(os.tmpdir(), 'archide-e2e-reqs.md');
+  fs.writeFileSync(tmp, '- REQ-1: system must charge payments\n- REQ-2: refunds must be supported\n');
   await page.$eval('#doc_user', (el) => { el.value = 'e2e-user'; });
-  await page.$eval('#doc_name', (el) => { el.value = 'reqs.md'; el.dispatchEvent(new Event('input', { bubbles: true })); });
-  await page.select('#doc_kind', 'md');
-  await clickCommTab(page, 'content'); await sleep(100);
-  await page.$eval('#doc_content', (el) => { el.value = '- REQ-1: system must charge payments\n- REQ-2: refunds must be supported'; });
-  await page.click('#doc-upload');
-  await sleep(400);
-  const docList = await page.$eval('#doc-list', (el) => el.textContent);
-  check('Ф7.1 document uploaded in UI', /reqs\.md/.test(docList), docList);
+  await (await page.$('#doc_file')).uploadFile(tmp);
+  await sleep(600);
+  const logText = await page.$eval('#activity', (el) => el.textContent);
+  check('Ф7.1 document attached in the chat (into RAG)', /indexed .*reqs\.md/i.test(logText), logText.slice(0, 180));
 
-  await page.$eval('#rag_query', (el) => { el.value = 'refunds'; });
-  await page.click('#rag-search');
-  await sleep(400);
-  const results = await page.$eval('#rag-results', (el) => el.textContent);
-  check('Ф7.2 RAG search in UI', /refund/i.test(results), results);
+  await page.$eval('#prompt_input', (el) => { el.value = 'refunds'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.click('#prompt-send');
+  await sleep(500);
+  const logText2 = await page.$eval('#activity', (el) => el.textContent);
+  check('Ф7.2 RAG question via the chat prompt', /refund/i.test(logText2), logText2.slice(0, 200));
 
-  await clickCommTab(page, 'answer'); await sleep(100);
+  await page.evaluate(() => {
+    const tab = [...document.querySelectorAll('#comm .tab')].find((t) => /answer/i.test(t.textContent));
+    if (tab) tab.click();
+  });
+  await sleep(150);
   await page.$eval('#rag_answer', (el) => { el.value = 'Refunds must be supported. Unicorns fly over rainbows.'; });
   await page.click('#rag-verify');
   await sleep(300);
@@ -257,22 +261,17 @@ async function runComm(browser) {
   }, re);
 
   const tabs = await page.$$eval('#comm .tab', (els) => els.map((e) => e.textContent.trim()));
-  check('comm window has tabs (activity/content/answer)', tabs.length >= 3, JSON.stringify(tabs));
-
-  await clickTab('content'); await sleep(150);
-  check('content form is a tab', await page.$eval('#doc_content', (el) => el.offsetParent !== null));
+  check('comm window has tabs (activity/answer)', tabs.length >= 2, JSON.stringify(tabs));
   await clickTab('answer'); await sleep(150);
   check('answer-to-verify form is a tab', await page.$eval('#rag_answer', (el) => el.offsetParent !== null));
   await clickTab('activity'); await sleep(150);
   check('activity tab has a prompt form', await page.$eval('#prompt_input', (el) => el.offsetParent !== null));
 
+  const tmp = path.join(os.tmpdir(), 'archide-e2e-comm.md');
+  fs.writeFileSync(tmp, '- REQ-1: refunds must be supported\n');
   await page.$eval('#doc_user', (el) => { el.value = 'comm-user'; });
-  await page.$eval('#doc_name', (el) => { el.value = 'comm.md'; });
-  await clickTab('content'); await sleep(100);
-  await page.$eval('#doc_content', (el) => { el.value = '- REQ-1: refunds must be supported'; });
-  await page.click('#doc-upload');
-  await sleep(300);
-  await clickTab('activity'); await sleep(100);
+  await (await page.$('#doc_file')).uploadFile(tmp);
+  await sleep(600);
 
   await page.$eval('#prompt_input', (el) => { el.value = 'refunds'; el.dispatchEvent(new Event('input', { bubbles: true })); });
   await page.click('#prompt-send');
@@ -282,6 +281,11 @@ async function runComm(browser) {
   check('user prompt appears in the log', userEvents >= 1, `user=${userEvents}`);
   check('agent events/reasoning appear in the log', agentEvents >= 1, `agent=${agentEvents}`);
 
+  const attachBtns = await page.$$eval('#activity .attach-btn', (els) => els.length);
+  if (attachBtns) await page.evaluate(() => document.querySelector('#activity .attach-btn').click());
+  const promptVal = await page.$eval('#prompt_input', (el) => el.value);
+  check('RAG result can be attached to the prompt', attachBtns >= 1 && /refund/i.test(promptVal), `btns=${attachBtns} prompt="${promptVal}"`);
+
   await page.$eval('#prompt_input', (el) => { el.value = 'zzzznomatch'; el.dispatchEvent(new Event('input', { bubbles: true })); });
   await page.click('#prompt-send');
   await sleep(500);
@@ -289,10 +293,8 @@ async function runComm(browser) {
 
   const h0 = await page.$eval('#comm', (el) => el.getBoundingClientRect().height);
   const box = await page.$eval('#comm-resize', (el) => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
-  await page.mouse.move(box.x, box.y);
-  await page.mouse.down();
-  await page.mouse.move(box.x, box.y - 60, { steps: 5 });
-  await page.mouse.up();
+  await page.mouse.move(box.x, box.y); await page.mouse.down();
+  await page.mouse.move(box.x, box.y - 60, { steps: 5 }); await page.mouse.up();
   await sleep(200);
   const h1 = await page.$eval('#comm', (el) => el.getBoundingClientRect().height);
   check('comm window top border is resizable', h1 > h0 + 20, `h0=${Math.round(h0)} h1=${Math.round(h1)}`);

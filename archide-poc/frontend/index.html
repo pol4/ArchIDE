@@ -129,35 +129,6 @@
         <div id="view-info" class="log"></div>
       </section>
 
-      <section class="panel">
-        <h2>6 · Documents (RAG)</h2>
-        <div class="row">
-          <label class="field">
-            <span>Name</span>
-            <input id="doc_name" type="text" placeholder="reqs.md" />
-          </label>
-          <label class="field">
-            <span>Kind</span>
-            <select id="doc_kind">
-              <option value="md">md</option>
-              <option value="csv">csv</option>
-            </select>
-          </label>
-        </div>
-        <label class="field">
-          <span>User (personal history)</span>
-          <input id="doc_user" type="text" value="default" />
-        </label>
-        <button id="doc-upload" class="secondary">Upload document</button>
-        <div id="doc-list" class="log"></div>
-        <label class="field">
-          <span>RAG query</span>
-          <input id="rag_query" type="text" placeholder="refunds" />
-        </label>
-        <button id="rag-search" class="secondary">Search RAG</button>
-        <div id="rag-results" class="log"></div>
-      </section>
-
       <section class="panel" id="status-panel">
         <h2>Status</h2>
         <div id="status" class="status idle">Idle</div>
@@ -201,21 +172,23 @@
         <div class="comm-head">
           <div class="comm-tabs">
             <button class="tab active" data-tab="activity">Activity</button>
-            <button class="tab" data-tab="content">Content</button>
             <button class="tab" data-tab="answer">Answer to verify</button>
           </div>
-          <label class="toggle"><input type="checkbox" id="auto-scroll" checked /> autoscroll</label>
+          <div class="comm-tools">
+            <label class="toggle">user <input id="doc_user" type="text" value="default" /></label>
+            <label class="attach" title="attach a Markdown/CSV document to the chat (goes into RAG)">Attach
+              <input id="doc_file" type="file" accept=".md,.csv,.txt" />
+            </label>
+            <label class="toggle"><input type="checkbox" id="auto-scroll" checked /> autoscroll</label>
+          </div>
         </div>
         <div class="comm-body">
           <div class="tabpane" id="tab-activity">
             <div id="activity" class="activity"></div>
             <form id="prompt-form" class="prompt-form">
-              <input id="prompt_input" type="text" placeholder="Message the agent…" autocomplete="off" />
+              <input id="prompt_input" type="text" placeholder="Message the agent or ask RAG…" autocomplete="off" />
               <button id="prompt-send" class="secondary" type="submit">Send</button>
             </form>
-          </div>
-          <div class="tabpane hidden" id="tab-content">
-            <textarea id="doc_content" placeholder="- REQ-1: system must ..."></textarea>
           </div>
           <div class="tabpane hidden" id="tab-answer">
             <textarea id="rag_answer" placeholder="Answer text to verify against RAG chunks"></textarea>

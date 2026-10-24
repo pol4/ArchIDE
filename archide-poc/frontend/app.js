@@ -182,6 +182,18 @@ function appendEvents(events) {
     t.textContent = ts ? `[${ts}] ${ev.type}` : ev.type;
     line.appendChild(t);
     line.appendChild(document.createTextNode(ev.text || ""));
+    if (ev.attach) {
+      const b = document.createElement("button");
+      b.className = "attach-btn";
+      b.textContent = "\u2192 prompt";
+      b.title = "attach this RAG result to the prompt";
+      b.addEventListener("click", () => {
+        const input = $("prompt_input");
+        input.value = (input.value ? input.value + " " : "") + ev.attach;
+        input.focus();
+      });
+      line.appendChild(b);
+    }
     box.appendChild(line);
   });
   if (stick) box.scrollTop = box.scrollHeight;
@@ -353,15 +365,13 @@ function wireControls() {
   });
   $("split").addEventListener("change", () => { state.split = $("split").checked; render(); });
   $("aspect-b").addEventListener("change", () => { state.aspectB = $("aspect-b").value; render(); });
-  $("doc-upload").addEventListener("click", uploadDoc);
-  $("rag-search").addEventListener("click", ragSearch);
   $("rag-verify").addEventListener("click", ragVerify);
+  $("doc_file").addEventListener("change", () => attachDoc($("doc_file").files[0]));
   document.querySelectorAll("#comm .tab").forEach((btn) => {
     btn.addEventListener("click", () => setCommTab(btn.dataset.tab));
   });
   $("prompt-form").addEventListener("submit", (e) => { e.preventDefault(); sendPrompt($("prompt_input").value); });
   wireCommResize();
-  loadDocs();
 }
 
 // Offline demo mode (no server): load demo.json and render a completed run.
@@ -417,54 +427,29 @@ function currentUser() {
   return ($("doc_user").value || "default").trim() || "default";
 }
 
-async function loadDocs() {
+async function attachDoc(file) {
+  if (!file) return;
+  const now = () => Date.now() / 1000;
+  let content = "";
   try {
-    const res = await api(`/api/docs?user=${encodeURIComponent(currentUser())}`);
-    const docs = res.docs || [];
-    $("doc-list").textContent = docs.length
-      ? docs.map((d) => `${d.name} (${d.chunks} chunks)`).join("\n")
-      : "no documents";
+    content = await file.text();
   } catch (e) {
-    $("doc-list").textContent = "docs: " + e.message;
+    appendEvents([{ ts: now(), type: "error", text: "cannot read file: " + e.message }]);
+    return;
   }
-}
-
-async function uploadDoc() {
-  const body = {
-    user: currentUser(),
-    name: $("doc_name").value.trim() || "document.md",
-    kind: $("doc_kind").value,
-    content: $("doc_content").value,
-  };
+  const kind = /\.csv$/i.test(file.name) ? "csv" : "md";
+  appendEvents([{ ts: now(), type: "user", text: `attach: ${file.name}` }]);
   try {
     const res = await api("/api/docs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ user: currentUser(), name: file.name, kind, content }),
     });
-    $("doc_name").value = "";
-    $("doc_content").value = "";
-    await loadDocs();
-    setStatus(`document indexed: ${(res.chunks || []).length} chunks`, "ok");
+    appendEvents([{ ts: now(), type: "status", text: `indexed ${file.name} into RAG (${(res.chunks || []).length} chunks)` }]);
   } catch (e) {
-    setStatus("upload failed: " + e.message, "error");
+    appendEvents([{ ts: now(), type: "error", text: "attach failed: " + e.message }]);
   }
-}
-
-async function ragSearch() {
-  try {
-    const res = await api("/api/rag/search", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user: currentUser(), query: $("rag_query").value.trim() }),
-    });
-    state.ragHits = res.results || [];
-    $("rag-results").textContent = state.ragHits.length
-      ? state.ragHits.map((h) => `[${h.score}] ${h.name}#${h.chunk}: ${h.text}`).join("\n")
-      : "no results";
-  } catch (e) {
-    $("rag-results").textContent = "search failed: " + e.message;
-  }
+  $("doc_file").value = "";
 }
 
 async function ragVerify() {
@@ -482,7 +467,7 @@ async function ragVerify() {
 }
 
 function setCommTab(name) {
-  [["activity", "tab-activity"], ["content", "tab-content"], ["answer", "tab-answer"]].forEach(([key, pane]) => {
+  [["activity", "tab-activity"], ["answer", "tab-answer"]].forEach(([key, pane]) => {
     const btn = document.querySelector(`#comm .tab[data-tab="${key}"]`);
     if (btn) btn.classList.toggle("active", key === name);
     const el = $(pane);
@@ -512,7 +497,7 @@ async function sendPrompt(text) {
     }
     state.ragHits = hits;
     appendEvents([{ ts: now(), type: "reasoning", text: `retrieved ${hits.length} marked chunk(s)` }]);
-    hits.forEach((h) => appendEvents([{ ts: now(), type: "output", text: `[${h.name}#${h.chunk}] ${h.text}` }]));
+    hits.forEach((h) => appendEvents([{ ts: now(), type: "output", text: `[${h.name}#${h.chunk}] ${h.text}`, attach: h.text }]));
   } catch (e) {
     appendEvents([{ ts: now(), type: "error", text: "agent error: " + e.message }]);
   }

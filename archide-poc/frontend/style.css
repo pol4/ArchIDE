@@ -324,3 +324,9 @@ button.mini.active { border-color: var(--accent); background: #1f2a37; color: #f
 .prompt-form button { width: auto; padding: 6px 12px; }
 .activity .ev.user { color: #7dd3fc; }
 .activity .ev.question { color: #f59e0b; }
+
+.comm-tools { display: flex; align-items: center; gap: 12px; }
+.comm-tools input[type="text"] { width: 90px; padding: 3px 6px; }
+.attach { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.attach input[type="file"] { width: auto; max-width: 150px; font-size: 11px; }
+.attach-btn { width: auto; padding: 0 6px; margin-left: 6px; font-size: 10px; border-radius: 4px; background: var(--panel-2); color: var(--text); }
