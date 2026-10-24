@@ -374,6 +374,8 @@ function wireControls() {
   $("doc-cancel").addEventListener("click", hideDocPreview);
   $("edit-add").addEventListener("click", editAddNode);
   $("edit-remove").addEventListener("click", editRemoveNode);
+  $("gen-run").addEventListener("click", generateArtifacts);
+  $("gen-coverage").addEventListener("click", showCoverageMatrix);
   document.querySelectorAll("#comm .tab").forEach((btn) => {
     btn.addEventListener("click", () => setCommTab(btn.dataset.tab));
   });
@@ -721,6 +723,39 @@ async function editRemoveNode() {
   const id = $("edit_remove_id").value.trim();
   if (!name || !id) { $("edit-info").textContent = "model name and node id required"; return; }
   await applyEdit(name, [{ op: "remove_node", id }]);
+}
+
+async function generateArtifacts() {
+  const name = $("gen_model").value.trim();
+  if (!name) { $("gen-info").textContent = "model name required"; return; }
+  try {
+    const res = await api(`/api/models/${encodeURIComponent(name)}/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kinds: ["openapi", "ddl", "schema", "skeleton"] }),
+    });
+    const arts = res.artifacts || {};
+    $("gen-info").textContent = Object.keys(arts).length
+      ? Object.entries(arts).map(([k, v]) => `${k}: ${v.length} chars`).join("\n")
+      : "no artifacts";
+  } catch (e) {
+    $("gen-info").textContent = "generate failed: " + e.message;
+  }
+}
+
+async function showCoverageMatrix() {
+  const name = $("gen_model").value.trim();
+  if (!name) { $("gen-info").textContent = "model name required"; return; }
+  try {
+    const res = await api(`/api/models/${encodeURIComponent(name)}/coverage-matrix`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    $("gen-info").textContent = `coverage: ${res.covered}/${res.total} (${Math.round((res.ratio || 0) * 100)}%)`;
+  } catch (e) {
+    $("gen-info").textContent = "coverage failed: " + e.message;
+  }
 }
 
 async function loadVolumeInfo() {

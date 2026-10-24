@@ -592,6 +592,51 @@ def main() -> int:
           "compliance" in (mm2.get("aspects") or {}) and "Control" in (mm2.get("node_types") or []),
           str((mm2.get("aspects") or {}).get("compliance")))
 
+    # Ф5.1-Ф5.5 - generation, work package, markers, conformance
+    gen_model = {"nodes": [
+        {"id": "sys://g", "type": "System", "parent": None, "evidence": ["a"]},
+        {"id": "container://g/c", "type": "Container", "parent": "sys://g", "evidence": ["a"]},
+        {"id": "component://g/svc", "type": "Component", "parent": "container://g/c", "evidence": ["svc.py"]},
+        {"id": "iface://g/svc", "type": "Interface", "parent": "component://g/svc", "evidence": ["svc.py"]},
+        {"id": "operation://g/charge", "type": "Operation", "parent": "iface://g/svc", "evidence": ["svc.py"], "signature": "charge(order: Order) -> Receipt"},
+        {"id": "data://g/order", "type": "DataEntity", "parent": "component://g/svc", "evidence": ["models.py"]},
+        {"id": "attribute://g/order/id", "type": "Attribute", "parent": "data://g/order", "evidence": ["models.py"], "data_type": "int"},
+        {"id": "req://REG-1", "type": "Requirement", "parent": None, "evidence": ["docs.md"]},
+    ], "edges": [
+        {"source": "component://g/svc", "target": "iface://g/svc", "type": "exposes"},
+        {"source": "iface://g/svc", "target": "operation://g/charge", "type": "has"},
+        {"source": "req://REG-1", "target": "component://g/svc", "type": "satisfies"},
+    ]}
+    req("PUT", "/api/models/gmodel", {"graph": gen_model})
+    st, gen = req("POST", "/api/models/gmodel/generate", {"kinds": ["openapi", "ddl", "schema", "skeleton"]})
+    arts = gen.get("artifacts") or {}
+    check("Ф5.1 generators produce artifacts",
+          st == 200 and {"openapi", "ddl", "schema", "skeleton"}.issubset(arts.keys()), str(list(arts.keys())))
+    check("Ф5.1 OpenAPI contains the operation", "charge" in (arts.get("openapi") or ""), (arts.get("openapi") or "")[:120])
+    check("Ф5.1 DDL contains the table", "order" in (arts.get("ddl") or "").lower(), (arts.get("ddl") or "")[:120])
+
+    st, wp = req("POST", "/api/models/gmodel/workpackage", {"node": "component://g/svc"})
+    check("Ф5.2 work package has slice + criteria",
+          st == 200 and wp.get("node") == "component://g/svc"
+          and len((wp.get("slice") or {}).get("nodes", [])) >= 1 and len(wp.get("criteria") or []) >= 1, str(wp)[:160])
+
+    st, mk = req("POST", "/api/models/gmodel/markers", {"node": "component://g/svc"})
+    markers = mk.get("markers") or []
+    check("Ф5.3 signed trace markers issued", st == 200 and len(markers) >= 1, str(markers[:1])[:160])
+    st, v = req("POST", "/api/markers/verify", {"marker": markers[0] if markers else {}, "kind": "trace"})
+    check("Ф5.3 trace marker verifies", st == 200 and v.get("valid") is True, str(v))
+
+    st, cmx = req("POST", "/api/models/gmodel/coverage-matrix", {})
+    check("Ф5.4 coverage matrix computed",
+          st == 200 and isinstance(cmx.get("matrix"), list) and len(cmx.get("matrix") or []) >= 1, str(cmx)[:160])
+    st, cf = req("POST", "/api/models/gmodel/conformance", {"markers": markers})
+    check("Ф5.4 conformance verifies markers and coverage",
+          st == 200 and cf.get("ok") is True and "coverage" in cf, str(cf)[:160])
+
+    st, loop = req("POST", "/api/models/gmodel/conformance-loop", {"node": "component://g/svc"})
+    check("Ф5.5 conformance loop reports repair guidance",
+          st == 200 and "gaps" in loop and "repair" in loop and loop.get("ok") is False, str(loop)[:160])
+
     # restore a sane config
     put_config({"llm": {"mode": "mock"}, "agent": {"runner": "local"}, "context": {"compare_docs": False}})
 

@@ -1,8 +1,8 @@
-"""Signed trace markers (Ф7.3).
+"""Signed markers (Ф7.3, Ф5.3).
 
-Unforgeable markers for document chunks — the same idea as graph-element markers
-(§11): a host-held HMAC key signs a payload; anyone can verify it, only the host
-can mint it.
+Unforgeable markers: a host-held HMAC key signs a payload; anyone can verify it,
+only the host can mint it. Used for document chunks (content-bound) and for code
+trace markers (artifact/chain/lease).
 """
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ import secrets
 from . import config as config_mod
 
 _FIELDS = ("doc", "chunk", "version", "user", "span", "text_hash")
+TRACE_FIELDS = ("artifact", "chain", "lease")
 
 
 def _key(cfg: dict) -> str:
@@ -24,12 +25,24 @@ def _key(cfg: dict) -> str:
     return key
 
 
-def _payload(marker: dict) -> str:
-    return json.dumps({k: marker.get(k) for k in _FIELDS}, sort_keys=True, separators=(",", ":"))
+def _payload(marker: dict, fields) -> str:
+    return json.dumps({k: marker.get(k) for k in fields}, sort_keys=True, separators=(",", ":"))
 
 
-def _signature(cfg: dict, marker: dict) -> str:
-    return hmac.new(_key(cfg).encode("utf-8"), _payload(marker).encode("utf-8"), hashlib.sha256).hexdigest()[:32]
+def _signature(cfg: dict, marker: dict, fields) -> str:
+    return hmac.new(_key(cfg).encode("utf-8"), _payload(marker, fields).encode("utf-8"), hashlib.sha256).hexdigest()[:32]
+
+
+def _sign(cfg: dict, payload: dict, fields) -> dict:
+    signed = {k: payload.get(k) for k in fields}
+    signed["sig"] = _signature(cfg, signed, fields)
+    return signed
+
+
+def _verify(cfg: dict, marker, fields) -> bool:
+    if not isinstance(marker, dict) or "sig" not in marker:
+        return False
+    return hmac.compare_digest(_signature(cfg, marker, fields), str(marker.get("sig")))
 
 
 def _text_hash(text) -> str:
@@ -37,17 +50,14 @@ def _text_hash(text) -> str:
 
 
 def sign(cfg: dict, marker: dict, text: str | None = None) -> dict:
-    signed = {k: marker.get(k) for k in _FIELDS if k != "text_hash"}
+    payload = {k: marker.get(k) for k in _FIELDS if k != "text_hash"}
     if text is not None:
-        signed["text_hash"] = _text_hash(text)
-    signed["sig"] = _signature(cfg, signed)
-    return signed
+        payload["text_hash"] = _text_hash(text)
+    return _sign(cfg, payload, _FIELDS)
 
 
 def verify(cfg: dict, marker) -> bool:
-    if not isinstance(marker, dict) or "sig" not in marker:
-        return False
-    return hmac.compare_digest(_signature(cfg, marker), str(marker.get("sig")))
+    return _verify(cfg, marker, _FIELDS)
 
 
 def verify_content(cfg: dict, marker, text) -> bool:
@@ -58,3 +68,11 @@ def verify_content(cfg: dict, marker, text) -> bool:
     if expected is None:
         return True
     return hmac.compare_digest(str(expected), _text_hash(text))
+
+
+def sign_trace(cfg: dict, payload: dict) -> dict:
+    return _sign(cfg, payload, TRACE_FIELDS)
+
+
+def verify_trace(cfg: dict, marker) -> bool:
+    return _verify(cfg, marker, TRACE_FIELDS)

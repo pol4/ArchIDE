@@ -464,6 +464,46 @@ async function runChatEdit(browser) {
   await page.close();
 }
 
+async function runGenerate(browser) {
+  await putConfig({ llm: { mode: 'mock' }, agent: { runner: 'local' }, context: { compare_docs: false } });
+  const seed = {
+    nodes: [
+      { id: 'sys://gu', type: 'System', parent: null, evidence: ['a'] },
+      { id: 'container://gu/c', type: 'Container', parent: 'sys://gu', evidence: ['a'] },
+      { id: 'component://gu/svc', type: 'Component', parent: 'container://gu/c', evidence: ['svc.py'] },
+      { id: 'iface://gu/svc', type: 'Interface', parent: 'component://gu/svc', evidence: ['svc.py'] },
+      { id: 'operation://gu/charge', type: 'Operation', parent: 'iface://gu/svc', evidence: ['svc.py'], signature: 'charge() -> Receipt' },
+      { id: 'data://gu/order', type: 'DataEntity', parent: 'component://gu/svc', evidence: ['models.py'] },
+      { id: 'attribute://gu/order/id', type: 'Attribute', parent: 'data://gu/order', evidence: ['models.py'], data_type: 'int' },
+    ],
+    edges: [
+      { source: 'component://gu/svc', target: 'iface://gu/svc', type: 'exposes' },
+      { source: 'iface://gu/svc', target: 'operation://gu/charge', type: 'has' },
+    ],
+  };
+  await fetch(`${BASE}/api/models/genuitest`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ graph: seed }),
+  });
+  const page = await browser.newPage();
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+  await page.setViewport({ width: 1680, height: 1000 });
+  await page.goto(`${BASE}/`, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelectorAll('#agent option').length > 0, { timeout: 15000 });
+
+  await page.$eval('#gen_model', (el) => { el.value = 'genuitest'; });
+  await page.click('#gen-run');
+  await sleep(400);
+  const info = await page.$eval('#gen-info', (el) => el.textContent);
+  check('Ф5.1 generate artifacts in UI', /openapi/.test(info) && /ddl/.test(info), info);
+
+  await page.click('#gen-coverage');
+  await sleep(400);
+  const info2 = await page.$eval('#gen-info', (el) => el.textContent);
+  check('Ф5.4 coverage shown in UI', /coverage:/.test(info2), info2);
+
+  await page.close();
+}
+
 async function runLive(browser) {
   await putConfig({
     llm: { mode: 'mock', model: 'test-model' },
@@ -533,6 +573,7 @@ async function runLive(browser) {
     await runPreview(browser);
     await runEdit(browser);
     await runChatEdit(browser);
+    await runGenerate(browser);
     await runLive(browser);
   } finally {
     await browser.close();

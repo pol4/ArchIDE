@@ -21,6 +21,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from backend import agents, analysis, gateway, maintenance, metamodel, model_store, runtime, sandbox
 from backend import constraints as constraints_mod
+from backend import generate as generate_mod
 from backend import review as review_mod
 from backend import slice as slice_mod
 from backend.extract import extract_aspects
@@ -43,6 +44,7 @@ _MODEL_RE = re.compile(r"^/api/models(?:/([A-Za-z0-9._-]+))?$")
 _MODEL_SUB_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(aggregations|coverage|slice|constraints|validate)$")
 _DOC_RE = re.compile(r"^/api/docs/([0-9a-f]+)(/requirements)?$")
 _EDIT_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(edit|impact|review|reconcile)$")
+_GEN_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(generate|workpackage|markers|coverage-matrix|conformance|conformance-loop)$")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -220,6 +222,31 @@ class Handler(BaseHTTPRequestHandler):
 
         if route == "/api/reconstruct":
             return self._reconstruct()
+        match_gen = _GEN_RE.match(route)
+        if match_gen:
+            model = model_store.load_model(config_mod.MODELS_DIR, match_gen.group(1))
+            if model is None:
+                return self._json(404, {"detail": "unknown model"})
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            view = match_gen.group(2)
+            cfg = config_mod.load_config()
+            try:
+                if view == "generate":
+                    return self._json(200, generate_mod.generate(model, body.get("kinds")))
+                if view == "workpackage":
+                    return self._json(200, generate_mod.workpackage(model, str(body.get("node") or "")))
+                if view == "markers":
+                    return self._json(200, generate_mod.trace_markers(cfg, model, str(body.get("node") or "")))
+                if view == "coverage-matrix":
+                    return self._json(200, generate_mod.coverage_matrix(model))
+                if view == "conformance-loop":
+                    return self._json(200, generate_mod.conformance_loop(cfg, model, str(body.get("node") or "")))
+                return self._json(200, generate_mod.conformance(cfg, model, body.get("markers")))
+            except ValueError as exc:
+                return self._json(400, {"detail": str(exc)})
         if route == "/api/metamodel/aspects":
             try:
                 body = self._read_json()
@@ -320,6 +347,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(400, {"detail": f"invalid JSON: {exc}"})
             cfg = config_mod.load_config()
             marker = body.get("marker")
+            if body.get("kind") == "trace":
+                return self._json(200, {"valid": markers_mod.verify_trace(cfg, marker)})
             result = {"valid": markers_mod.verify(cfg, marker)}
             if body.get("text") is not None:
                 result["content_ok"] = markers_mod.verify_content(cfg, marker, body.get("text"))
