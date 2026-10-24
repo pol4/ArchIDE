@@ -58,6 +58,7 @@ graph TD
   GW["LLM Gateway"]
   RAG["RAG / Index Service"]
   ING["Document Ingestion"]
+  PDOC["Personal Document Store:<br/>md/csv, личная история"]
   ART["Artifact / CI Service"]
   REG["Registry:<br/>требования, контракты, алиасы"]
 
@@ -80,6 +81,8 @@ graph TD
   GW --> LLM["LLM-инференс"]
   RAG --> MS
   ING --> RAG
+  ING --> PDOC
+  PDOC --> RAG
   ING --> DOCS["Документы"]
   ART --> MS
   VAL --> MS
@@ -157,10 +160,14 @@ graph TD
 
 **RAG / Index Service**
 - `Chunker`, `Embedder`, `Vector index`, `Graph retriever`, `Hybrid ranker`,
-  `Provenance/citations`, `Doc↔model comparator`.
+  `Provenance/citations`, `Doc↔model comparator`,
+  **`Marker-based grounding verifier`** — отличает реально восстановленные чанки от
+  сгенерированного LLM по подписанным меткам (Ф7.4).
 
 **Document Ingestion**
-- `Connectors` (Confluence/Wiki/файлы), `Parser`, `Chunker`, `Requirement linker`.
+- `Connectors` (Confluence/Wiki/файлы, **Markdown/CSV из чата**), `Parser`, `Chunker`,
+  `Requirement linker`, `Personal store` (личная история пользователя, изоляция),
+  `Chunk marker issuer` (подписанные метки чанков, аналог §11).
 
 **Artifact / CI Service**
 - `Generators`, `Marker issuer/verifier` (§11), `Conformance suite`, `Gate`.
@@ -204,6 +211,11 @@ derived-требования/тесты (§14).
 уточняющие вопросы → транзакция правок + impact-предупреждения → **семантический
 диф** на подтверждение → применение + авто-починка зависимых частей → commit (gate).
 По запросу — кастомные аспекты/срезы/представления.
+
+**6.9 Персональные документы и маркированный RAG (Ф7):** архитектор прикладывает
+Markdown/CSV в чате → оригинал в **личной истории** → ingestion/chunking → каждый чанк
+получает **подписанную метку** → индекс RAG → ответ RAG **верифицируется по меткам**
+(восстановлено vs сгенерировано), цитаты ссылаются на метки.
 
 **6.7 Цикл стабилизации (reconciliation, §0.1):** триггер (правка/коммит, изменение
 требований/федерации, периодика) → **наблюдение** (валидация, impact, покрытие,
@@ -273,6 +285,8 @@ graph LR
 - **Изоляция песочницы**: лимиты cpu/mem/pids/time, `--read-only`, cap-drop,
   сетевой доступ только к шлюзу.
 - **Метки** подписываются хостом (§11); агент недоверенный — все артефакты через gate.
+- **Изоляция личной истории** (§13.6): оригиналы документов пользователя хранятся
+  per-user; чанки несут подписанные метки (§13.7), RAG-ответ верифицируется по ним.
 - **Устойчивость к токсичной обратной связи** (§18): нейтрализация оскорбительной/
   манипулятивной обратной связи, приоритет объективных сигналов, ограничение влияния
   негатива, аудит и откат адаптаций профиля.
@@ -342,7 +356,7 @@ graph LR
 | §10 редактирование/impact, диалог с агентом | Validator (transactions, impact), Agent Editor (chat), API |
 | §11 генерация/метки | Artifact/CI (issuer/verifier) |
 | §12 версионность/time-travel | Model Store (Version Store), Web UI (timeline) |
-| §13 RAG | RAG/Index, Document Ingestion, Registry |
+| §13 RAG, персональные документы, метки чанков | RAG/Index, Document Ingestion, Personal Document Store |
 | §14 федерация | Registry (GCR), Validator, RAG |
 | §15 поверхности/окна | Web UI |
 | §16 техконтур | все контейнеры |
