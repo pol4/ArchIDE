@@ -40,6 +40,17 @@ def _cross_aspect_error(etype: str, stype: str, dtype: str) -> str | None:
     return None
 
 
+def evidence_errors(graph, files) -> list[str]:
+    """Node ids whose `evidence` does not reference any of the known files (Ф3.2)."""
+    known = {str(f) for f in (files or [])}
+    missing: list[str] = []
+    for node in graph.get("nodes", []) or []:
+        evidence = node.get("evidence") or []
+        if evidence and not any(str(e) in known for e in evidence):
+            missing.append(node.get("id"))
+    return missing
+
+
 def registry_errors() -> list[str]:
     """Self-consistency check of the metamodel registry."""
     errors: list[str] = []

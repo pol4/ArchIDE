@@ -21,9 +21,12 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from backend import agents, analysis, gateway, maintenance, metamodel, model_store, runtime, sandbox
 from backend import slice as slice_mod
+from backend.extract import extract_aspects
+from backend.merge import candidates
+from backend.evaluate import evaluate
 from backend import config as config_mod
 from backend import runs
-from backend.graph_schema import registry_errors, validate_graph
+from backend.graph_schema import evidence_errors, registry_errors, validate_graph
 from backend.runner import reconstruct
 
 BASE = Path(__file__).resolve().parent
@@ -183,6 +186,30 @@ class Handler(BaseHTTPRequestHandler):
             return self._reconstruct()
         if route == "/api/slice":
             return self._slice(None)
+        if route == "/api/merge/candidates":
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            return self._json(200, candidates(body.get("code") or {}, body.get("docs") or {}))
+        if route == "/api/eval":
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            graph = body.get("graph")
+            if not isinstance(graph, dict):
+                return self._json(400, {"detail": "body must contain a `graph` object"})
+            return self._json(200, evaluate(graph))
+        if route == "/api/extract":
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            files = [(str(f.get("path") or ""), str(f.get("content") or "")) for f in (body.get("files") or []) if isinstance(f, dict)]
+            result = extract_aspects(files, graph=body.get("graph"))
+            return self._json(200, {"nodes": result["nodes"], "edges": result["edges"],
+                                    "stats": {"nodes": len(result["nodes"]), "edges": len(result["edges"])}})
         match_slice = _MODEL_SUB_RE.match(route)
         if match_slice and match_slice.group(2) == "slice":
             return self._slice(match_slice.group(1))
@@ -272,7 +299,10 @@ class Handler(BaseHTTPRequestHandler):
         graph = body.get("graph")
         if not isinstance(graph, dict):
             return self._json(400, {"detail": "body must contain a `graph` object"})
-        return self._json(200, {"validation": validate_graph(graph)})
+        result = {"validation": validate_graph(graph)}
+        if body.get("files") is not None:
+            result["missing_evidence"] = evidence_errors(graph, body.get("files"))
+        return self._json(200, result)
 
     def _volume_info(self) -> None:
         cfg = config_mod.load_config()
@@ -340,7 +370,10 @@ class Handler(BaseHTTPRequestHandler):
         graph = body.get("graph")
         if not isinstance(graph, dict):
             return self._json(400, {"detail": "body must contain a `graph` object"})
-        return self._json(200, {"validation": validate_graph(graph)})
+        result = {"validation": validate_graph(graph)}
+        if body.get("files") is not None:
+            result["missing_evidence"] = evidence_errors(graph, body.get("files"))
+        return self._json(200, result)
 
     def _llm_chat(self) -> None:
         cfg = config_mod.load_config()

@@ -328,6 +328,60 @@ def main() -> int:
     check("Ф2.6 aspects demo model is valid", st == 200 and r["validation"]["ok"] is True,
           str((r.get("validation") or {}).get("errors")[:3]))
 
+    # Ф3.1 - aspect-aware extraction
+    ext_files = [
+        {"path": "svc.py", "content": "def charge(order):\n    return order\n\ndef refund(order):\n    return order\n"},
+        {"path": "models.py", "content": "@dataclass\nclass Order:\n    id: int\n"},
+    ]
+    st, ex = req("POST", "/api/extract", {"files": ext_files})
+    etypes = sorted({n["type"] for n in (ex.get("nodes") or [])})
+    check("Ф3.1 extract finds aspect nodes",
+          st == 200 and "Interface" in etypes and "Operation" in etypes and "DataEntity" in etypes, str(etypes))
+    put_config({"llm": {"mode": "mock"}, "agent": {"runner": "local"},
+                "context": {"compare_docs": False, "extract_aspects": True}})
+    snap_x, _ = run_and_wait(REPO, "builtin")
+    gtypes = {n["type"] for n in (snap_x.get("graph") or {}).get("nodes", [])}
+    check("Ф3.1 reconstruction is aspect-aware", "Interface" in gtypes, str(sorted(gtypes)))
+
+    # Ф3.2 - evidence validation (code) + doc coverage surface
+    ev_graph = {"nodes": [
+        {"id": "sys://e", "type": "System", "parent": None, "evidence": ["a.py"]},
+        {"id": "component://e/c", "type": "Component", "parent": "sys://e", "evidence": ["missing.py"]},
+    ], "edges": []}
+    st, r = req("POST", "/api/validate", {"graph": ev_graph, "files": ["a.py"]})
+    check("Ф3.2 evidence validation flags missing files",
+          st == 200 and "component://e/c" in (r.get("missing_evidence") or []), str(r.get("missing_evidence")))
+    st, r = req("POST", "/api/validate", {"graph": ev_graph, "files": ["a.py", "missing.py"]})
+    check("Ф3.2 evidence validation passes when files exist",
+          st == 200 and not (r.get("missing_evidence") or []), str(r.get("missing_evidence")))
+
+    # Ф3.3 - identity resolution candidates (code vs docs)
+    code_g = {"nodes": [
+        {"id": "component://c/a", "type": "Component", "name": "API", "parent": None, "evidence": ["a"]},
+        {"id": "component://c/x", "type": "Component", "name": "Cache", "parent": None, "evidence": ["a"]},
+    ], "edges": []}
+    docs_g = {"nodes": [
+        {"id": "component://d/a", "type": "Component", "name": "API", "parent": None, "evidence": ["d"]},
+        {"id": "component://d/y", "type": "Component", "name": "Cache", "parent": None, "evidence": ["d"]},
+        {"id": "component://d/z", "type": "Component", "name": "Cache", "parent": None, "evidence": ["d"]},
+    ], "edges": []}
+    st, r = req("POST", "/api/merge/candidates", {"code": code_g, "docs": docs_g})
+    check("Ф3.3 identity candidates computed",
+          st == 200 and len(r.get("auto_matched") or []) >= 1 and len(r.get("ambiguous") or []) >= 1,
+          str({k: len(v) for k, v in (r or {}).items() if isinstance(v, list)}))
+
+    # Ф3.4 - evaluation harness (property/metamorphic/round-trip)
+    eval_graph = {"nodes": [
+        {"id": "sys://v", "type": "System", "parent": None, "evidence": ["a"]},
+        {"id": "container://v/a", "type": "Container", "parent": "sys://v", "evidence": ["a"]},
+        {"id": "component://v/c", "type": "Component", "parent": "container://v/a", "evidence": ["a"]},
+    ], "edges": []}
+    st, r = req("POST", "/api/eval", {"graph": eval_graph})
+    m = r.get("metrics") or {}
+    check("Ф3.4 eval metrics computed",
+          st == 200 and m.get("validator_ok") is True and m.get("canonical_stable") is True and m.get("slice_deterministic") is True,
+          str(m))
+
     # Ф2.7 - slice/view engine (deterministic, read-only)
     sl_graph = {"nodes": [
         {"id": "sys://s", "type": "System", "parent": None, "evidence": ["a"]},

@@ -75,6 +75,8 @@ DEFAULT_CONFIG = {
         # two-pass analysis: reconstruct from source code first, then compare
         # with the documentation and surface deviations
         "compare_docs": True,
+        # aspect-aware extraction from source files (Ф3.1)
+        "extract_aspects": True,
     },
 }
 

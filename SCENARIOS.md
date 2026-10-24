@@ -22,9 +22,10 @@
 - **Шаги:** ввести адрес репозитория → выбрать агента → «Reconstruct graph» →
   наблюдать активность.
 - **Ожидание:** статус `Done`, граф отрисован, модель валидна, в ленте есть
-  `pass 1/2`; **модель сохранена канонически** (`model: <hash>`, `GET /api/models`).
-- **Покрытие:** API `S2 run completes/graph valid/events` + `Ф2.1 metamodel/model
-  persistence`; браузер `S2 run finished`, `S2 graph rendered`, `Ф2.1 model hash`.
+  `pass 1/2`; **модель сохранена канонически** (`model: <hash>`, `GET /api/models`);
+  граф **аспект-осознан** (содержит интерфейсы/данные из кода).
+- **Покрытие:** API `S2 run completes/graph valid/events`, `Ф2.1 …`, `Ф3.1 extract/
+  aspect-aware`; браузер `S2 run finished`, `S2 graph rendered`, `Ф2.1 model hash`.
 
 ## S3 — Двухпроходная реконструкция код + документация
 - **Цель:** сравнить модель, восстановленную по коду и по документации.
@@ -32,8 +33,8 @@
   источников `all / code / docs`.
 - **Ожидание:** выполнен проход по докам; элементы с `sources:["code","docs"]`;
   отклонения помечены; фильтр меняет видимый набор.
-- **Покрытие:** API `S3 docs pass`, `S3 merged sources`, `S3 deviations flagged`;
-  браузер `S3 source filter …`.
+- **Покрытие:** API `S3 docs pass`, `S3 merged sources`, `S3 deviations flagged`,
+  `Ф3.3 identity candidates`; браузер `S3 source filter …`.
 
 ## S4 — Навигация по уровням и аспектам
 - **Цель:** смотреть систему по одному уровню и по аспектам, в т.ч. **несколько
@@ -80,7 +81,7 @@
   самосогласован); **агрегационные интерфейсы** имеют членов и валидный контракт;
   считается **покрытие требований** (трассировка).
 - **Покрытие:** API `S8 validate tool rejects unknown job`, `S8 validator accepts/rejects`,
-  `Ф2.2 …`, `Ф2.3 aggregation …`, `Ф2.4 coverage …`;
+  `Ф2.2 …`, `Ф2.3 aggregation …`, `Ф2.4 coverage …`, `Ф3.2 evidence …`, `Ф3.4 eval …`;
   браузер `S8 validation panel reports a valid model`, `Ф2.4 coverage shown`.
 
 ## S9 — Устойчивость к ошибкам

@@ -113,3 +113,30 @@ def merge_graphs(code: dict, docs: dict) -> dict:
             edge.setdefault("note", _deviation_note(edge["sources"]))
 
     return {"nodes": list(merged.values()), "edges": list(merged_edges.values())}
+
+
+def candidates(code: dict, docs: dict) -> dict:
+    """Identity-resolution candidates between two graphs (Ф3.3)."""
+    def keys(graph):
+        out: dict[str, list[str]] = {}
+        for node in graph.get("nodes", []) or []:
+            if not isinstance(node, dict):
+                continue
+            key = f"{node.get('type', '?')}::{_norm(node.get('name') or node.get('id'))}"
+            out.setdefault(key, []).append(node.get("id"))
+        return out
+
+    ck, dk = keys(code), keys(docs)
+    auto_matched: list[dict] = []
+    ambiguous: list[dict] = []
+    for key, cids in ck.items():
+        dids = dk.get(key)
+        if not dids:
+            continue
+        if len(cids) == 1 and len(dids) == 1:
+            auto_matched.append({"code": cids[0], "docs": dids[0]})
+        else:
+            ambiguous.append({"key": key, "code": cids, "docs": dids})
+    code_only = [cid for key, ids in ck.items() if key not in dk for cid in ids]
+    docs_only = [did for key, ids in dk.items() if key not in ck for did in ids]
+    return {"auto_matched": auto_matched, "ambiguous": ambiguous, "code_only": code_only, "docs_only": docs_only}

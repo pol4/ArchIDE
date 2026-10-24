@@ -126,6 +126,11 @@ def reconstruct(repo: str, agent_id: str, cfg: dict, run=None) -> tuple[dict, di
             max_repairs, output_path, llm, runner, cfg, run, emit,
         )
 
+        if ctx_cfg.get("extract_aspects", True):
+            from .extract import augment_graph
+            graph = augment_graph(graph, code_files)
+            emit("status", f"aspect-aware extraction: {len(graph['nodes'])} nodes")
+
         # ---- pass 2: reconstruct from documentation and compare
         meta["docs_pass"] = False
         if compare_docs:
