@@ -25,6 +25,7 @@ from backend.extract import extract_aspects
 from backend import docs as docs_mod
 from backend import markers as markers_mod
 from backend.merge import candidates
+from backend import edit as edit_mod
 from backend.evaluate import evaluate
 from backend import config as config_mod
 from backend import runs
@@ -39,6 +40,7 @@ _RUN_RE = re.compile(r"^/api/runs/([0-9a-f]+)(/cancel)?$")
 _MODEL_RE = re.compile(r"^/api/models(?:/([A-Za-z0-9._-]+))?$")
 _MODEL_SUB_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(aggregations|coverage|slice)$")
 _DOC_RE = re.compile(r"^/api/docs/([0-9a-f]+)(/requirements)?$")
+_EDIT_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(edit|impact)$")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -197,6 +199,40 @@ class Handler(BaseHTTPRequestHandler):
             return self._reconstruct()
         if route == "/api/slice":
             return self._slice(None)
+        match_edit = _EDIT_RE.match(route)
+        if match_edit:
+            model = model_store.load_model(config_mod.MODELS_DIR, match_edit.group(1))
+            if model is None:
+                return self._json(404, {"detail": "unknown model"})
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            if match_edit.group(2) == "impact":
+                return self._json(200, {"impacted": edit_mod.impacted(model, str(body.get("node") or ""))})
+            operations = body.get("operations") or []
+            try:
+                new_model, applied = edit_mod.apply_operations(model, operations, auto_repair=bool(body.get("auto_repair")))
+            except ValueError as exc:
+                return self._json(422, {"ok": False, "error": str(exc)})
+            validation = validate_graph(new_model)
+            touched = set()
+            for op in operations:
+                for key in ("id", "source", "target"):
+                    if op.get(key):
+                        touched.add(op[key])
+                if isinstance(op.get("node"), dict) and op["node"].get("id"):
+                    touched.add(op["node"]["id"])
+                if isinstance(op.get("edge"), dict):
+                    touched.add(op["edge"].get("source"))
+                    touched.add(op["edge"].get("target"))
+            impacted = sorted({n for t0 in touched if t0 for n in ([t0] + edit_mod.impacted(model, t0))})
+            if not validation["ok"]:
+                return self._json(422, {"ok": False, "validation": validation, "model": new_model, "impacted": impacted})
+            if body.get("dry_run"):
+                return self._json(200, {"ok": True, "validation": validation, "model": new_model, "impacted": impacted, "dry_run": True})
+            _, digest = model_store.save_model(new_model, config_mod.MODELS_DIR, match_edit.group(1))
+            return self._json(200, {"ok": True, "validation": validation, "model": new_model, "impacted": impacted, "hash": digest})
         if route == "/api/docs":
             try:
                 body = self._read_json()

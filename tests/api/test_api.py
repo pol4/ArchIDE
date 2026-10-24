@@ -457,6 +457,47 @@ def main() -> int:
     rids = [r.get("id") for r in (rq.get("requirements") or [])]
     check("Ф7.5 requirements extracted from document", st == 200 and any("REQ-1" in str(r) for r in rids), str(rids))
 
+    # Ф4.1-Ф4.3 - edit transactions + gate + referential actions + impact
+    base_model = {"nodes": [
+        {"id": "sys://m", "type": "System", "parent": None, "evidence": ["a"]},
+        {"id": "container://m/c", "type": "Container", "parent": "sys://m", "evidence": ["a"]},
+        {"id": "component://m/x", "type": "Component", "parent": "container://m/c", "evidence": ["a"]},
+        {"id": "iface://m/i", "type": "Interface", "parent": "component://m/x", "evidence": ["a"]},
+    ], "edges": [
+        {"source": "container://m/c", "target": "component://m/x", "type": "contains"},
+        {"source": "component://m/x", "target": "iface://m/i", "type": "exposes"},
+    ]}
+    req("PUT", "/api/models/edit1", {"graph": base_model})
+    st, r = req("POST", "/api/models/edit1/edit",
+                {"operations": [{"op": "add_node", "node": {"id": "component://m/y", "type": "Component", "parent": "container://m/c", "evidence": ["a"]}}]})
+    check("Ф4.1 edit transaction adds a node", st == 200 and r.get("ok") is True and (r.get("validation") or {}).get("ok") is True, str(r)[:160])
+
+    st, r = req("POST", "/api/models/edit1/edit",
+                {"operations": [{"op": "add_node", "node": {"id": "component://m/z", "type": "Component", "parent": "nope", "evidence": ["a"]}}]})
+    check("Ф4.1 gate blocks an invalid edit (dangling parent)", st == 422 and r.get("ok") is False, str(r)[:160])
+
+    st, r = req("POST", "/api/models/edit1/edit",
+                {"operations": [{"op": "add_node", "node": {"id": "component://m/z", "type": "Component", "parent": "nope", "evidence": ["a"]}}],
+                 "auto_repair": True})
+    z = next((n for n in (r.get("model") or {}).get("nodes", []) if n["id"] == "component://m/z"), {})
+    check("Ф4.3 auto-repair nullifies a dangling parent", st == 200 and r.get("ok") is True and z.get("parent") is None, str(z))
+
+    st, r = req("POST", "/api/models/edit1/edit", {"operations": [{"op": "remove_node", "id": "component://m/x"}]})
+    ids_after = [n["id"] for n in (r.get("model") or {}).get("nodes", [])]
+    check("Ф4.2 cascade removes the dependent interface", st == 200 and r.get("ok") is True and "iface://m/i" not in ids_after, str(ids_after))
+
+    m2 = {"nodes": [
+        {"id": "sys://m2", "type": "System", "parent": None, "evidence": ["a"]},
+        {"id": "component://m2/a", "type": "Component", "parent": "sys://m2", "evidence": ["a"]},
+        {"id": "component://m2/b", "type": "Component", "parent": "sys://m2", "evidence": ["a"]},
+    ], "edges": [{"source": "component://m2/a", "target": "component://m2/b", "type": "depends_on"}]}
+    req("PUT", "/api/models/edit2", {"graph": m2})
+    st, r = req("POST", "/api/models/edit2/edit", {"operations": [{"op": "remove_node", "id": "component://m2/b"}]})
+    check("Ф4.2 restrict blocks removal of a dependency target", st == 422 and r.get("ok") is False, str(r)[:160])
+
+    st, r = req("POST", "/api/models/edit2/impact", {"node": "component://m2/a"})
+    check("Ф4.3 impact analysis lists affected nodes", st == 200 and "component://m2/b" in (r.get("impacted") or []), str(r)[:160])
+
     # restore a sane config
     put_config({"llm": {"mode": "mock"}, "agent": {"runner": "local"}, "context": {"compare_docs": False}})
 

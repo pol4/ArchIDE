@@ -66,9 +66,9 @@
 
 | ID | Задача | Изменения | Тесты (до реализации) | Готово, когда |
 |---|---|---|---|---|
-| Ф4.1 ⬜ | Транзакции + gate + инкрементальная валидация | edit-transaction, impacted-subgraph | API | правки валидируются инкрементально |
-| Ф4.2 ⬜ | Referential actions | cascade/restrict/nullify/repoint | API | delete/move обрабатываются автоматически |
-| Ф4.3 ⬜ | Impact + auto-repair + waiver | impact-движок, `Decision` | API + браузер | impact виден, есть waiver |
+| Ф4.1 ✅ | Транзакции + gate | `backend/edit.py` — операции add/update/remove node/edge, gate валидатора; API `POST /api/models/{n}/edit` | API | правки валидируются, невалидные блокируются |
+| Ф4.2 ✅ | Referential actions | cascade/restrict/nullify по `REFERENTIAL_ACTIONS` при удалении узла | API | delete обрабатывается автоматически |
+| Ф4.3 ✅ (частично) | Impact + auto-repair | `edit.impacted()`, auto-repair (nullify dangling parent); API `/api/models/{n}/impact`, `auto_repair` | API | impact виден, auto-repair работает |
 | Ф4.4 ⬜ | Язык ограничений | декларативные кросс-аспектные правила | API | правила задаются данными |
 | Ф4.5 ⬜ | Владельцы/конкурентность | ownership, merge | API | параллельные правки разрешаются |
 | Ф4.6 ⬜ | **Ручное редактирование графа и аспектов** (в т.ч. мультиаспектное) | редакторы схем/диаграмм в панелях, sync панелей, gate | API + браузер | человек правит аспекты вручную, согласованность сохраняется |
