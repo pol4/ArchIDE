@@ -255,6 +255,9 @@ async function pollRun() {
       renderValidation(snap.validation);
     }
     logMeta(snap.meta);
+    if (snap.meta && snap.meta.model_path) {
+      $("edit_model").value = String(snap.meta.model_path).split("/").pop().replace(/\.json$/, "");
+    }
     await showCoverage(snap.meta);
     if (snap.error) appendEvents([{ type: "error", text: snap.error, ts: Date.now() / 1000 }]);
 
@@ -369,6 +372,8 @@ function wireControls() {
   $("doc_file").addEventListener("change", () => attachDoc($("doc_file").files[0]));
   $("doc-confirm").addEventListener("click", confirmDoc);
   $("doc-cancel").addEventListener("click", hideDocPreview);
+  $("edit-add").addEventListener("click", editAddNode);
+  $("edit-remove").addEventListener("click", editRemoveNode);
   document.querySelectorAll("#comm .tab").forEach((btn) => {
     btn.addEventListener("click", () => setCommTab(btn.dataset.tab));
   });
@@ -613,6 +618,42 @@ function wireCommResize() {
     document.body.style.userSelect = "";
     render();
   });
+}
+
+async function applyEdit(name, operations) {
+  try {
+    const res = await api(`/api/models/${encodeURIComponent(name)}/edit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operations, auto_repair: true }),
+    });
+    $("edit-info").textContent = `ok \u00b7 nodes: ${(res.model.nodes || []).length} \u00b7 impacted: ${(res.impacted || []).length}`;
+    if (res.model) {
+      state.graph = res.model;
+      state.fullGraph = res.model;
+      state.focus = null;
+      render();
+    }
+  } catch (e) {
+    $("edit-info").textContent = "edit failed: " + e.message;
+  }
+}
+
+async function editAddNode() {
+  const name = $("edit_model").value.trim();
+  const id = $("edit_node_id").value.trim();
+  if (!name || !id) { $("edit-info").textContent = "model name and node id required"; return; }
+  await applyEdit(name, [{ op: "add_node", node: {
+    id, type: $("edit_node_type").value.trim() || "Component",
+    parent: $("edit_node_parent").value.trim() || null, evidence: [],
+  } }]);
+}
+
+async function editRemoveNode() {
+  const name = $("edit_model").value.trim();
+  const id = $("edit_remove_id").value.trim();
+  if (!name || !id) { $("edit-info").textContent = "model name and node id required"; return; }
+  await applyEdit(name, [{ op: "remove_node", id }]);
 }
 
 async function loadVolumeInfo() {

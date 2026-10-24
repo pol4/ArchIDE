@@ -98,7 +98,8 @@
 - **Ожидание:** валидные правки применяются и сохраняются; невалидные блокируются (422);
   `cascade`/`restrict` работают; impact виден; auto-repair чинит висячие ссылки.
 - **Покрытие:** API `Ф4.1 edit/gate`, `Ф4.2 cascade/restrict`, `Ф4.3 impact/auto-repair`,
-  `Ф4.4 constraints/validate`, `Ф4.5 ownership/conflict`, `Ф4.9 review`, `Ф4.10 reconcile`.
+  `Ф4.4 constraints/validate`, `Ф4.5 ownership/conflict`, `Ф4.9 review`, `Ф4.10 reconcile`;
+  браузер `Ф4.6 edit via UI`.
 
 ## S11 — Персональные документы и маркированный RAG
 - **Цель:** архитектор отдаёт документы (Markdown/CSV) как требования/справку; они

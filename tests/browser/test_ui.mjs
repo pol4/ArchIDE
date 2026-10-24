@@ -378,6 +378,43 @@ async function runPreview(browser) {
   await page.close();
 }
 
+async function runEdit(browser) {
+  await putConfig({ llm: { mode: 'mock' }, agent: { runner: 'local' }, context: { compare_docs: false } });
+  const seed = {
+    nodes: [
+      { id: 'sys://ui', type: 'System', parent: null, evidence: ['a'] },
+      { id: 'container://ui/c', type: 'Container', parent: 'sys://ui', evidence: ['a'] },
+    ],
+    edges: [],
+  };
+  await fetch(`${BASE}/api/models/uitest`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ graph: seed }),
+  });
+
+  const page = await browser.newPage();
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+  await page.setViewport({ width: 1680, height: 1000 });
+  await page.goto(`${BASE}/`, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelectorAll('#agent option').length > 0, { timeout: 15000 });
+
+  await page.$eval('#edit_model', (el) => { el.value = 'uitest'; });
+  await page.$eval('#edit_node_id', (el) => { el.value = 'component://ui/new'; });
+  await page.$eval('#edit_node_type', (el) => { el.value = 'Component'; });
+  await page.$eval('#edit_node_parent', (el) => { el.value = 'container://ui/c'; });
+  await page.click('#edit-add');
+  await sleep(400);
+  const info = await page.$eval('#edit-info', (el) => el.textContent);
+  check('Ф4.6 add node via UI', /ok/.test(info) && /nodes:\s*3/.test(info), info);
+
+  await page.$eval('#edit_remove_id', (el) => { el.value = 'component://ui/new'; });
+  await page.click('#edit-remove');
+  await sleep(400);
+  const info2 = await page.$eval('#edit-info', (el) => el.textContent);
+  check('Ф4.6 remove node via UI', /ok/.test(info2) && /nodes:\s*2/.test(info2), info2);
+
+  await page.close();
+}
+
 async function runLive(browser) {
   await putConfig({
     llm: { mode: 'mock', model: 'test-model' },
@@ -445,6 +482,7 @@ async function runLive(browser) {
     await runComm(browser);
     await runPrompt(browser);
     await runPreview(browser);
+    await runEdit(browser);
     await runLive(browser);
   } finally {
     await browser.close();

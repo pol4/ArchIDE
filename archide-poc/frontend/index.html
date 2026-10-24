@@ -129,6 +129,35 @@
         <div id="view-info" class="log"></div>
       </section>
 
+      <section class="panel">
+        <h2>7 · Edit model</h2>
+        <label class="field">
+          <span>Model name</span>
+          <input id="edit_model" type="text" placeholder="model name (from a run)" />
+        </label>
+        <label class="field">
+          <span>Node id</span>
+          <input id="edit_node_id" type="text" placeholder="component://app/new" />
+        </label>
+        <div class="row">
+          <label class="field">
+            <span>Type</span>
+            <input id="edit_node_type" type="text" value="Component" />
+          </label>
+          <label class="field">
+            <span>Parent</span>
+            <input id="edit_node_parent" type="text" placeholder="container://app" />
+          </label>
+        </div>
+        <button id="edit-add" class="secondary">Add node</button>
+        <label class="field">
+          <span>Remove node id</span>
+          <input id="edit_remove_id" type="text" />
+        </label>
+        <button id="edit-remove" class="secondary">Remove node</button>
+        <div id="edit-info" class="log"></div>
+      </section>
+
       <section class="panel" id="status-panel">
         <h2>Status</h2>
         <div id="status" class="status idle">Idle</div>
