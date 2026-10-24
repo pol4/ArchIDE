@@ -73,7 +73,7 @@ const CONFIG_FIELDS = [
 
 const state = {
   config: null, agents: [], runId: null, since: 0, poll: null, saveTimer: null,
-  graph: null, focus: null, selected: null, byId: null, kids: null, rootId: null,
+  graph: null, fullGraph: null, focus: null, selected: null, byId: null, kids: null, rootId: null,
   sourceMode: "all", aspects: new Set(["structure"]),
 };
 
@@ -337,6 +337,8 @@ function wireControls() {
   $("zoom-in").addEventListener("click", zoomIn);
   $("zoom-out").addEventListener("click", zoomOut);
   $("zoom-reset").addEventListener("click", () => { state.focus = null; state.selected = null; render(); });
+  $("view-apply").addEventListener("click", applySlice);
+  $("view-reset").addEventListener("click", resetSlice);
   CONFIG_FIELDS.forEach((id) => {
     $(id).addEventListener("change", scheduleSave);
     $(id).addEventListener("input", scheduleSave);
@@ -477,8 +479,43 @@ function escapeHtml(s) {
 
 function setGraph(graph) {
   state.graph = graph && graph.nodes && graph.nodes.length ? graph : null;
+  state.fullGraph = state.graph;
   state.focus = null;
   state.selected = null;
+  render();
+}
+
+async function applySlice() {
+  const scope = $("view_scope").value.trim();
+  const info = $("view-info");
+  if (!scope) { info.textContent = "enter a scope node id"; return; }
+  if (!state.fullGraph) { info.textContent = "no graph loaded"; return; }
+  try {
+    const res = await api("/api/slice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        graph: state.fullGraph,
+        scope,
+        depth: Number($("view_depth").value) || 0,
+        direction: $("view_dir").value,
+      }),
+    });
+    state.graph = res.slice;
+    state.focus = null;
+    state.selected = null;
+    render();
+    info.textContent = `slice: ${res.slice.nodes.length} nodes, ${res.slice.edges.length} edges`;
+  } catch (e) {
+    info.textContent = "slice failed: " + e.message;
+  }
+}
+
+function resetSlice() {
+  state.graph = state.fullGraph;
+  state.focus = null;
+  state.selected = null;
+  $("view-info").textContent = "";
   render();
 }
 

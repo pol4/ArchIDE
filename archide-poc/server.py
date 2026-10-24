@@ -20,6 +20,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from backend import agents, analysis, gateway, maintenance, metamodel, model_store, runtime, sandbox
+from backend import slice as slice_mod
 from backend import config as config_mod
 from backend import runs
 from backend.graph_schema import registry_errors, validate_graph
@@ -31,7 +32,7 @@ FRONTEND = (BASE / "frontend").resolve()
 _SANDBOX_RE = re.compile(r"^/sandbox/(repo|meta|event|result|validate)/([0-9a-f]+)$")
 _RUN_RE = re.compile(r"^/api/runs/([0-9a-f]+)(/cancel)?$")
 _MODEL_RE = re.compile(r"^/api/models(?:/([A-Za-z0-9._-]+))?$")
-_MODEL_SUB_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(aggregations|coverage)$")
+_MODEL_SUB_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(aggregations|coverage|slice)$")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -112,7 +113,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, payload)
 
         match = _MODEL_SUB_RE.match(route)
-        if match:
+        if match and match.group(2) in ("aggregations", "coverage"):
             model = model_store.load_model(config_mod.MODELS_DIR, match.group(1))
             if model is None:
                 return self._json(404, {"detail": "unknown model"})
@@ -180,6 +181,11 @@ class Handler(BaseHTTPRequestHandler):
 
         if route == "/api/reconstruct":
             return self._reconstruct()
+        if route == "/api/slice":
+            return self._slice(None)
+        match_slice = _MODEL_SUB_RE.match(route)
+        if match_slice and match_slice.group(2) == "slice":
+            return self._slice(match_slice.group(1))
         if route == "/api/validate":
             return self._validate()
         if route == "/api/volume/reset":
@@ -230,6 +236,32 @@ class Handler(BaseHTTPRequestHandler):
         cfg = config_mod.load_config()
         run_id = runs.start(repo, agent_id, cfg)
         return self._json(200, {"run_id": run_id})
+
+    def _slice(self, model_name) -> None:
+        if model_name is None:
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            graph = body.get("graph")
+            if not isinstance(graph, dict):
+                return self._json(400, {"detail": "body must contain a `graph` object"})
+        else:
+            graph = model_store.load_model(config_mod.MODELS_DIR, model_name)
+            if graph is None:
+                return self._json(404, {"detail": "unknown model"})
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+        try:
+            result = slice_mod.slice_graph(
+                graph, str(body.get("scope") or ""), int(body.get("depth", 1)),
+                body.get("aspects"), str(body.get("direction") or "down"),
+            )
+        except ValueError as exc:
+            return self._json(400, {"detail": str(exc)})
+        return self._json(200, {"slice": result, "stats": {"nodes": len(result["nodes"]), "edges": len(result["edges"])}})
 
     def _validate(self) -> None:
         """Stateless formal validation tool (metamodel + anchors + cross-aspect)."""

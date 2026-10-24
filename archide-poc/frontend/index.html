@@ -102,6 +102,33 @@
         <div id="volume-info" class="log"></div>
       </section>
 
+      <section class="panel">
+        <h2>5 · View (slice)</h2>
+        <label class="field">
+          <span>Scope (node id)</span>
+          <input id="view_scope" type="text" placeholder="component://app/svc" />
+        </label>
+        <div class="row">
+          <label class="field">
+            <span>Depth</span>
+            <input id="view_depth" type="number" min="0" max="5" value="1" />
+          </label>
+          <label class="field">
+            <span>Direction</span>
+            <select id="view_dir">
+              <option value="down">down</option>
+              <option value="up">up</option>
+              <option value="both">both</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <button id="view-apply" class="secondary">Apply slice</button>
+          <button id="view-reset" class="secondary">Reset</button>
+        </div>
+        <div id="view-info" class="log"></div>
+      </section>
+
       <section class="panel" id="status-panel">
         <h2>Status</h2>
         <div id="status" class="status idle">Idle</div>

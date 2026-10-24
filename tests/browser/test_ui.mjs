@@ -159,6 +159,28 @@ async function runAspects(browser) {
   await page.close();
 }
 
+async function runViews(browser) {
+  const page = await browser.newPage();
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+  await page.setViewport({ width: 1680, height: 1000 });
+  await page.goto(`${BASE}/?demo=aspects`, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelectorAll('#canvas > g > g').length > 0, { timeout: 15000 });
+
+  await page.$eval('#view_scope', (el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }, 'component://app/svc');
+  await page.select('#view_dir', 'down');
+  await page.click('#view-apply');
+  await sleep(300);
+  const info = await page.$eval('#view-info', (el) => el.textContent);
+  check('Ф2.7 slice applied via UI (info shown)', /slice:\s*5 nodes/.test(info), info);
+
+  await page.click('#view-reset');
+  await sleep(200);
+  const info2 = await page.$eval('#view-info', (el) => el.textContent);
+  check('Ф2.7 slice reset clears the view info', info2.trim() === '', info2);
+
+  await page.close();
+}
+
 async function runLive(browser) {
   await putConfig({
     llm: { mode: 'mock', model: 'test-model' },
@@ -220,6 +242,7 @@ async function runLive(browser) {
     console.log(`Browser e2e against ${BASE}`);
     await runDemo(browser);
     await runAspects(browser);
+    await runViews(browser);
     await runLive(browser);
   } finally {
     await browser.close();

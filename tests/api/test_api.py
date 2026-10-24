@@ -328,6 +328,26 @@ def main() -> int:
     check("Ф2.6 aspects demo model is valid", st == 200 and r["validation"]["ok"] is True,
           str((r.get("validation") or {}).get("errors")[:3]))
 
+    # Ф2.7 - slice/view engine (deterministic, read-only)
+    sl_graph = {"nodes": [
+        {"id": "sys://s", "type": "System", "parent": None, "evidence": ["a"]},
+        {"id": "container://s/a", "type": "Container", "parent": "sys://s", "evidence": ["a"]},
+        {"id": "component://s/c", "type": "Component", "parent": "container://s/a", "evidence": ["a"]},
+        {"id": "iface://s/i", "type": "Interface", "parent": "component://s/c", "evidence": ["a"]},
+        {"id": "container://s/b", "type": "Container", "parent": "sys://s", "evidence": ["a"]},
+    ], "edges": [{"source": "component://s/c", "target": "iface://s/i", "type": "exposes"}]}
+    st, r = req("POST", "/api/slice", {"graph": sl_graph, "scope": "component://s/c", "depth": 1, "direction": "down"})
+    ids = sorted(n["id"] for n in (r.get("slice") or {}).get("nodes", []))
+    check("Ф2.7 slice down = scope + children", st == 200 and ids == ["component://s/c", "iface://s/i"], str(ids))
+    st, r = req("POST", "/api/slice", {"graph": sl_graph, "scope": "component://s/c", "depth": 2, "direction": "up"})
+    ids = sorted(n["id"] for n in (r.get("slice") or {}).get("nodes", []))
+    check("Ф2.7 slice up = scope + ancestors", "sys://s" in ids and "container://s/a" in ids, str(ids))
+    st, r = req("POST", "/api/slice", {"graph": sl_graph, "scope": "container://s/a", "depth": 2, "aspects": ["interface"]})
+    ids = sorted(n["id"] for n in (r.get("slice") or {}).get("nodes", []))
+    check("Ф2.7 aspect-filtered slice", "iface://s/i" in ids and "component://s/c" not in ids, str(ids))
+    st, _ = req("POST", "/api/slice", {"graph": sl_graph, "scope": "nope"})
+    check("Ф2.7 slice rejects unknown scope (400)", st == 400, str(st))
+
     # Ф1.5 - volume layout (scratch) + GC over host persistence
     if STUB_STATE:
         argv_path = pathlib.Path(STUB_STATE) / "argv.log"
