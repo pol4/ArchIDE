@@ -330,3 +330,27 @@ button.mini.active { border-color: var(--accent); background: #1f2a37; color: #f
 .attach { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
 .attach input[type="file"] { width: auto; max-width: 150px; font-size: 11px; }
 .attach-btn { width: auto; padding: 0 6px; margin-left: 6px; font-size: 10px; border-radius: 4px; background: var(--panel-2); color: var(--text); }
+
+.prompt-resize { height: 6px; cursor: ns-resize; }
+.prompt-resize:hover { background: var(--accent); }
+.prompt-form {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+  height: 34px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  margin-top: 0;
+}
+.prompt-form textarea {
+  flex: 1;
+  height: 100%;
+  resize: none;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 7px;
+  font: 12px/1.4 ui-monospace, Menlo, monospace;
+}
+.prompt-form button { align-self: flex-end; height: 100%; }

@@ -302,6 +302,41 @@ async function runComm(browser) {
   await page.close();
 }
 
+async function runPrompt(browser) {
+  const page = await browser.newPage();
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+  await page.setViewport({ width: 1680, height: 1000 });
+  await page.goto(`${BASE}/`, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelectorAll('#agent option').length > 0, { timeout: 15000 });
+
+  const setPrompt = (v) => page.$eval('#prompt_input', (el, val) => { el.value = val; el.dispatchEvent(new Event('input', { bubbles: true })); }, v);
+  await setPrompt('first prompt');
+  await page.click('#prompt-send'); await sleep(300);
+  await setPrompt('second prompt');
+  await page.click('#prompt-send'); await sleep(300);
+
+  await page.focus('#prompt_input');
+  await page.keyboard.press('ArrowUp'); await sleep(100);
+  const v1 = await page.$eval('#prompt_input', (el) => el.value);
+  await page.keyboard.press('ArrowUp'); await sleep(100);
+  const v2 = await page.$eval('#prompt_input', (el) => el.value);
+  await page.keyboard.press('ArrowDown'); await sleep(100);
+  const v3 = await page.$eval('#prompt_input', (el) => el.value);
+  check('ArrowUp recalls the previous prompt', v1 === 'second prompt', `v1="${v1}"`);
+  check('ArrowUp again recalls the older prompt', v2 === 'first prompt', `v2="${v2}"`);
+  check('ArrowDown moves forward in history', v3 === 'second prompt', `v3="${v3}"`);
+
+  const h0 = await page.$eval('#prompt-form', (el) => el.getBoundingClientRect().height);
+  const box = await page.$eval('#prompt-resize', (el) => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await page.mouse.move(box.x, box.y); await page.mouse.down();
+  await page.mouse.move(box.x, box.y - 70, { steps: 5 }); await page.mouse.up();
+  await sleep(200);
+  const h1 = await page.$eval('#prompt-form', (el) => el.getBoundingClientRect().height);
+  check('prompt input top border is resizable', h1 > h0 + 20, `h0=${Math.round(h0)} h1=${Math.round(h1)}`);
+
+  await page.close();
+}
+
 async function runLive(browser) {
   await putConfig({
     llm: { mode: 'mock', model: 'test-model' },
@@ -367,6 +402,7 @@ async function runLive(browser) {
     await runSplit(browser);
     await runDocs(browser);
     await runComm(browser);
+    await runPrompt(browser);
     await runLive(browser);
   } finally {
     await browser.close();

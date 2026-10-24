@@ -75,7 +75,7 @@ const state = {
   config: null, agents: [], runId: null, since: 0, poll: null, saveTimer: null,
   graph: null, fullGraph: null, focus: null, selected: null, byId: null, kids: null, rootId: null,
   sourceMode: "all", aspects: new Set(["structure"]), split: false, aspectB: "interface",
-  ragHits: [],
+  ragHits: [], promptHistory: [], promptIndex: 0,
 };
 
 async function api(path, options) {
@@ -371,6 +371,8 @@ function wireControls() {
     btn.addEventListener("click", () => setCommTab(btn.dataset.tab));
   });
   $("prompt-form").addEventListener("submit", (e) => { e.preventDefault(); sendPrompt($("prompt_input").value); });
+  wirePromptInput();
+  wirePromptResize();
   wireCommResize();
 }
 
@@ -480,6 +482,8 @@ async function sendPrompt(text) {
   if (!value) return;
   const now = () => Date.now() / 1000;
   appendEvents([{ ts: now(), type: "user", text: value }]);
+  state.promptHistory.push(value);
+  state.promptIndex = state.promptHistory.length;
   $("prompt_input").value = "";
   try {
     const res = await api("/api/rag/search", {
@@ -501,6 +505,54 @@ async function sendPrompt(text) {
   } catch (e) {
     appendEvents([{ ts: now(), type: "error", text: "agent error: " + e.message }]);
   }
+}
+
+function wirePromptInput() {
+  const input = $("prompt_input");
+  if (!input) return;
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendPrompt(input.value);
+      return;
+    }
+    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+    const before = input.value.slice(0, input.selectionStart);
+    const after = input.value.slice(input.selectionEnd);
+    if (e.key === "ArrowUp" && before.includes("\n")) return;
+    if (e.key === "ArrowDown" && after.includes("\n")) return;
+    const history = state.promptHistory;
+    if (!history.length) return;
+    e.preventDefault();
+    if (e.key === "ArrowUp") state.promptIndex = Math.max(0, state.promptIndex - 1);
+    else state.promptIndex = Math.min(history.length, state.promptIndex + 1);
+    input.value = state.promptIndex >= history.length ? "" : history[state.promptIndex];
+    input.selectionStart = input.selectionEnd = input.value.length;
+  });
+}
+
+function wirePromptResize() {
+  const handle = $("prompt-resize");
+  const form = $("prompt-form");
+  if (!handle || !form) return;
+  let resizing = false, startY = 0, startH = 0;
+  handle.addEventListener("mousedown", (e) => {
+    resizing = true;
+    startY = e.clientY;
+    startH = form.getBoundingClientRect().height;
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!resizing) return;
+    const h = Math.max(30, Math.min(320, startH - (e.clientY - startY)));
+    form.style.height = h + "px";
+  });
+  window.addEventListener("mouseup", () => {
+    if (!resizing) return;
+    resizing = false;
+    document.body.style.userSelect = "";
+  });
 }
 
 function wireCommResize() {

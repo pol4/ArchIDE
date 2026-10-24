@@ -185,8 +185,9 @@
         <div class="comm-body">
           <div class="tabpane" id="tab-activity">
             <div id="activity" class="activity"></div>
+            <div id="prompt-resize" class="prompt-resize" title="drag to resize the prompt"></div>
             <form id="prompt-form" class="prompt-form">
-              <input id="prompt_input" type="text" placeholder="Message the agent or ask RAG…" autocomplete="off" />
+              <textarea id="prompt_input" rows="1" placeholder="Message the agent or ask RAG… (↑ history)" autocomplete="off"></textarea>
               <button id="prompt-send" class="secondary" type="submit">Send</button>
             </form>
           </div>
