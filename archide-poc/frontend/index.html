@@ -130,35 +130,6 @@
       </section>
 
       <section class="panel">
-        <h2>7 · Edit model</h2>
-        <label class="field">
-          <span>Model name</span>
-          <input id="edit_model" type="text" placeholder="model name (from a run)" />
-        </label>
-        <label class="field">
-          <span>Node id</span>
-          <input id="edit_node_id" type="text" placeholder="component://app/new" />
-        </label>
-        <div class="row">
-          <label class="field">
-            <span>Type</span>
-            <input id="edit_node_type" type="text" value="Component" />
-          </label>
-          <label class="field">
-            <span>Parent</span>
-            <input id="edit_node_parent" type="text" placeholder="container://app" />
-          </label>
-        </div>
-        <button id="edit-add" class="secondary">Add node</button>
-        <label class="field">
-          <span>Remove node id</span>
-          <input id="edit_remove_id" type="text" />
-        </label>
-        <button id="edit-remove" class="secondary">Remove node</button>
-        <div id="edit-info" class="log"></div>
-      </section>
-
-      <section class="panel">
         <h2>8 · Generate</h2>
         <label class="field">
           <span>Model name</span>
@@ -201,10 +172,31 @@
           <button id="zoom-reset" class="mini" title="Show the whole system">⌂</button>
         </div>
       </div>
+      <div class="edit-toolbar">
+        <input id="model_load" type="text" placeholder="model name" />
+        <button id="model-load" class="mini wide">Load</button>
+        <button id="add-node" class="mini" title="add a node to the current level">＋</button>
+        <select id="win_aspect" class="mini wide" title="aspect window"></select>
+        <button id="win-open" class="mini" title="open an aspect window">⧉</button>
+      </div>
       <div id="canvas-wrap" class="canvas-wrap">
         <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
         <svg id="canvas2" xmlns="http://www.w3.org/2000/svg"></svg>
         <div id="empty" class="empty">Run a reconstruction to render the graph.</div>
+        <div id="popover" class="popover hidden">
+          <label>name <input id="pop_name" type="text" /></label>
+          <label>type <select id="pop_type"></select></label>
+          <div class="row">
+            <button id="pop-create" class="secondary">Create</button>
+            <button id="pop-cancel" class="secondary">Cancel</button>
+          </div>
+        </div>
+        <div id="node-actions" class="node-actions hidden">
+          <input id="node-rename" type="text" placeholder="rename" />
+          <button id="node-rename-apply" class="mini wide">Rename</button>
+          <button id="node-delete" class="mini wide danger">Delete</button>
+        </div>
+        <div id="windows" class="windows"></div>
       </div>
       <div id="validation" class="validation"></div>
       <div class="comm" id="comm">

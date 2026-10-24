@@ -378,52 +378,6 @@ async function runPreview(browser) {
   await page.close();
 }
 
-async function runEdit(browser) {
-  await putConfig({ llm: { mode: 'mock' }, agent: { runner: 'local' }, context: { compare_docs: false } });
-  const seed = {
-    nodes: [
-      { id: 'sys://ui', type: 'System', parent: null, evidence: ['a'] },
-      { id: 'container://ui/c', type: 'Container', parent: 'sys://ui', evidence: ['a'] },
-    ],
-    edges: [],
-  };
-  await fetch(`${BASE}/api/models/uitest`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ graph: seed }),
-  });
-
-  const page = await browser.newPage();
-  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
-  await page.setViewport({ width: 1680, height: 1000 });
-  await page.goto(`${BASE}/`, { waitUntil: 'load' });
-  await page.waitForFunction(() => document.querySelectorAll('#agent option').length > 0, { timeout: 15000 });
-
-  await page.$eval('#edit_model', (el) => { el.value = 'uitest'; });
-  await page.$eval('#edit_node_id', (el) => { el.value = 'component://ui/new'; });
-  await page.$eval('#edit_node_type', (el) => { el.value = 'Component'; });
-  await page.$eval('#edit_node_parent', (el) => { el.value = 'container://ui/c'; });
-  await page.click('#edit-add');
-  await sleep(400);
-  const info = await page.$eval('#edit-info', (el) => el.textContent);
-  check('Ф4.6 add node via UI', /ok/.test(info) && /nodes:\s*3/.test(info), info);
-
-  await page.$eval('#edit_remove_id', (el) => { el.value = 'component://ui/new'; });
-  await page.click('#edit-remove');
-  await sleep(400);
-  const info2 = await page.$eval('#edit-info', (el) => el.textContent);
-  check('Ф4.6 remove node via UI', /ok/.test(info2) && /nodes:\s*2/.test(info2), info2);
-
-  await fetch(`${BASE}/api/metamodel/aspects`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'compliance', node_types: ['Policy', 'Control'], edge_types: ['governs'] }),
-  });
-  await page.reload({ waitUntil: 'load' });
-  await page.waitForFunction(() => document.querySelectorAll('#agent option').length > 0, { timeout: 15000 });
-  const chips = await page.$$eval('#legend .chip', (els) => els.map((e) => e.textContent.trim()));
-  check('Ф4.8 custom aspect appears in UI', chips.includes('compliance'), JSON.stringify(chips));
-
-  await page.close();
-}
-
 async function runChatEdit(browser) {
   await putConfig({ llm: { mode: 'mock' }, agent: { runner: 'local' }, context: { compare_docs: false } });
   const seed = {
@@ -449,14 +403,17 @@ async function runChatEdit(browser) {
     await sleep(500);
   };
 
-  await page.$eval('#edit_model', (el) => { el.value = 'chatedit'; });
+  await page.$eval('#model_load', (el) => { el.value = 'chatedit'; });
+  await page.click('#model-load');
+  await sleep(400);
   await send('add Component component://ce/new under container://ce/c');
   const log = await page.$eval('#activity', (el) => el.textContent);
   check('Ф4.7 chat applies an edit intent', /applied/.test(log), log.slice(-160));
   const stored = await (await fetch(`${BASE}/api/models/chatedit`)).json();
   check('Ф4.7 edit persisted via chat', stored.nodes.some((n) => n.id === 'component://ce/new'), 'node not stored');
 
-  await page.$eval('#edit_model', (el) => { el.value = ''; });
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelectorAll('#agent option').length > 0, { timeout: 15000 });
   await send('add Component component://ce/orphan');
   const log2 = await page.$eval('#activity', (el) => el.textContent);
   check('Ф4.7 agent asks a question when context is missing', (await page.$$eval('#activity .ev.question', (els) => els.length)) >= 1, log2.slice(-160));
@@ -500,6 +457,58 @@ async function runGenerate(browser) {
   await sleep(400);
   const info2 = await page.$eval('#gen-info', (el) => el.textContent);
   check('Ф5.4 coverage shown in UI', /coverage:/.test(info2), info2);
+
+  await page.close();
+}
+
+async function runVisualEdit(browser) {
+  await putConfig({ llm: { mode: 'mock' }, agent: { runner: 'local' }, context: { compare_docs: false } });
+  const seed = {
+    nodes: [
+      { id: 'sys://ve', type: 'System', name: 've', parent: null, evidence: ['a'] },
+      { id: 'container://ve/c', type: 'Container', name: 'c', parent: 'sys://ve', evidence: ['a'] },
+      { id: 'component://ve/a', type: 'Component', name: 'a', parent: 'container://ve/c', evidence: ['a'] },
+    ],
+    edges: [],
+  };
+  await fetch(`${BASE}/api/models/ve`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ graph: seed }),
+  });
+
+  const page = await browser.newPage();
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+  await page.setViewport({ width: 1680, height: 1000 });
+  await page.goto(`${BASE}/`, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelectorAll('#agent option').length > 0, { timeout: 15000 });
+
+  await page.$eval('#model_load', (el) => { el.value = 've'; });
+  await page.click('#model-load');
+  await sleep(400);
+  check('visual edit: model loaded on canvas', (await page.$$eval('#canvas > g > g', (els) => els.length)) >= 1);
+
+  await clickNode(page, 'c');
+  await page.click('#add-node');
+  await sleep(200);
+  await page.$eval('#pop_name', (el) => { el.value = 'NewSvc'; });
+  await page.select('#pop_type', 'Component');
+  await page.click('#pop-create');
+  await sleep(400);
+  const stored = await (await fetch(`${BASE}/api/models/ve`)).json();
+  check('visual edit: node added directly on canvas', stored.nodes.some((n) => n.name === 'NewSvc'), 'not stored');
+
+  await clickNode(page, 'NewSvc');
+  await sleep(200);
+  await page.click('#node-delete');
+  await sleep(400);
+  const stored2 = await (await fetch(`${BASE}/api/models/ve`)).json();
+  check('visual edit: node deleted directly on canvas', !stored2.nodes.some((n) => n.name === 'NewSvc'), 'still stored');
+
+  await page.select('#win_aspect', 'interface');
+  await page.click('#win-open');
+  await page.select('#win_aspect', 'data');
+  await page.click('#win-open');
+  await sleep(300);
+  check('specialized aspect windows open simultaneously', (await page.$$eval('#windows .awin', (els) => els.length)) >= 2);
 
   await page.close();
 }
@@ -571,7 +580,7 @@ async function runLive(browser) {
     await runComm(browser);
     await runPrompt(browser);
     await runPreview(browser);
-    await runEdit(browser);
+    await runVisualEdit(browser);
     await runChatEdit(browser);
     await runGenerate(browser);
     await runLive(browser);

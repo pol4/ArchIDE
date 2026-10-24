@@ -75,7 +75,7 @@ const state = {
   config: null, agents: [], runId: null, since: 0, poll: null, saveTimer: null,
   graph: null, fullGraph: null, focus: null, selected: null, byId: null, kids: null, rootId: null,
   sourceMode: "all", aspects: new Set(["structure"]), split: false, aspectB: "interface",
-  ragHits: [], promptHistory: [], promptIndex: 0, pendingDoc: null,
+  ragHits: [], promptHistory: [], promptIndex: 0, pendingDoc: null, modelName: null,
 };
 
 async function api(path, options) {
@@ -256,7 +256,10 @@ async function pollRun() {
     }
     logMeta(snap.meta);
     if (snap.meta && snap.meta.model_path) {
-      $("edit_model").value = String(snap.meta.model_path).split("/").pop().replace(/\.json$/, "");
+      const name = String(snap.meta.model_path).split("/").pop().replace(/\.json$/, "");
+      state.modelName = name;
+      $("model_load").value = name;
+      $("gen_model").value = name;
     }
     await showCoverage(snap.meta);
     if (snap.error) appendEvents([{ type: "error", text: snap.error, ts: Date.now() / 1000 }]);
@@ -372,10 +375,15 @@ function wireControls() {
   $("doc_file").addEventListener("change", () => attachDoc($("doc_file").files[0]));
   $("doc-confirm").addEventListener("click", confirmDoc);
   $("doc-cancel").addEventListener("click", hideDocPreview);
-  $("edit-add").addEventListener("click", editAddNode);
-  $("edit-remove").addEventListener("click", editRemoveNode);
   $("gen-run").addEventListener("click", generateArtifacts);
   $("gen-coverage").addEventListener("click", showCoverageMatrix);
+  $("model-load").addEventListener("click", loadModel);
+  $("add-node").addEventListener("click", openAddPopover);
+  $("pop-create").addEventListener("click", createNodeFromPopover);
+  $("pop-cancel").addEventListener("click", () => $("popover").classList.add("hidden"));
+  $("node-delete").addEventListener("click", deleteSelectedNode);
+  $("node-rename-apply").addEventListener("click", renameSelectedNode);
+  $("win-open").addEventListener("click", () => openAspectWindow($("win_aspect").value));
   document.querySelectorAll("#comm .tab").forEach((btn) => {
     btn.addEventListener("click", () => setCommTab(btn.dataset.tab));
   });
@@ -540,7 +548,7 @@ async function sendPrompt(text) {
   $("prompt_input").value = "";
 
   const intent = parseIntent(value);
-  const model = ($("edit_model").value || "").trim();
+  const model = state.modelName || "";
 
   if (intent.kind === "add" || intent.kind === "remove") {
     if (!model) {
@@ -708,23 +716,6 @@ async function applyEdit(name, operations) {
   }
 }
 
-async function editAddNode() {
-  const name = $("edit_model").value.trim();
-  const id = $("edit_node_id").value.trim();
-  if (!name || !id) { $("edit-info").textContent = "model name and node id required"; return; }
-  await applyEdit(name, [{ op: "add_node", node: {
-    id, type: $("edit_node_type").value.trim() || "Component",
-    parent: $("edit_node_parent").value.trim() || null, evidence: [],
-  } }]);
-}
-
-async function editRemoveNode() {
-  const name = $("edit_model").value.trim();
-  const id = $("edit_remove_id").value.trim();
-  if (!name || !id) { $("edit-info").textContent = "model name and node id required"; return; }
-  await applyEdit(name, [{ op: "remove_node", id }]);
-}
-
 async function generateArtifacts() {
   const name = $("gen_model").value.trim();
   if (!name) { $("gen-info").textContent = "model name required"; return; }
@@ -756,6 +747,152 @@ async function showCoverageMatrix() {
   } catch (e) {
     $("gen-info").textContent = "coverage failed: " + e.message;
   }
+}
+
+function applyCanvasEdit(operations) {
+  const name = state.modelName;
+  if (!name) {
+    setStatus("Load a model first (model name + Load)", "error");
+    return Promise.resolve();
+  }
+  return api(`/api/models/${encodeURIComponent(name)}/edit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ operations, auto_repair: true }),
+  }).then((res) => {
+    state.graph = res.model;
+    state.fullGraph = res.model;
+    render();
+    renderAllAspectWindows();
+    setStatus("edit applied", "ok");
+  }).catch((e) => setStatus("edit rejected: " + e.message, "error"));
+}
+
+async function loadModel() {
+  const name = $("model_load").value.trim();
+  if (!name) { setStatus("model name required", "error"); return; }
+  try {
+    const model = await api(`/api/models/${encodeURIComponent(name)}`);
+    state.modelName = name;
+    setGraph(model);
+    setStatus("model loaded: " + name, "ok");
+  } catch (e) {
+    setStatus("load failed: " + e.message, "error");
+  }
+}
+
+function openAddPopover() {
+  if (!state.modelName) { setStatus("Load a model first", "error"); return; }
+  const sel = $("pop_type");
+  sel.innerHTML = "";
+  Object.keys(TYPE_TO_ASPECT).forEach((type) => {
+    const opt = document.createElement("option");
+    opt.value = type; opt.textContent = type;
+    sel.appendChild(opt);
+  });
+  $("pop_name").value = "";
+  const r = $("add-node").getBoundingClientRect();
+  const wrap = $("canvas-wrap").getBoundingClientRect();
+  $("popover").style.left = Math.max(8, r.left - wrap.left) + "px";
+  $("popover").style.top = Math.max(8, r.bottom - wrap.top + 4) + "px";
+  $("popover").classList.remove("hidden");
+  $("pop_name").focus();
+}
+
+function createNodeFromPopover() {
+  const name = $("pop_name").value.trim();
+  const type = $("pop_type").value;
+  if (!name) return;
+  const parent = state.focus || state.rootId;
+  const id = `${type.toLowerCase()}://${(state.modelName || "app")}/${name.replace(/[^A-Za-z0-9._-]+/g, "-")}`;
+  $("popover").classList.add("hidden");
+  applyCanvasEdit([{ op: "add_node", node: { id, type, name, parent, evidence: [] } }]);
+}
+
+function deleteSelectedNode() {
+  if (!state.selected) return;
+  const id = state.selected;
+  state.selected = null;
+  applyCanvasEdit([{ op: "remove_node", id }]);
+}
+
+function renameSelectedNode() {
+  const name = $("node-rename").value.trim();
+  if (!state.selected || !name) return;
+  applyCanvasEdit([{ op: "update_node", id: state.selected, patch: { name } }]);
+}
+
+function renderAspectWindow(aspect) {
+  const win = $("awin-" + aspect);
+  if (!win) return;
+  const body = win.querySelector(".awin-body");
+  const nodes = ((state.graph && state.graph.nodes) || []).filter((n) => aspectOf(n) === aspect);
+  body.innerHTML = nodes.length
+    ? nodes.map((n) => `<div class="awin-row"><span>${n.name || n.id}</span><span class="muted">${n.type}</span></div>`).join("")
+    : "<div class='muted'>no elements</div>";
+}
+
+function renderAllAspectWindows() {
+  document.querySelectorAll("#windows .awin").forEach((w) => renderAspectWindow(w.id.replace("awin-", "")));
+}
+
+function addAspectElement(aspect) {
+  const win = $("awin-" + aspect);
+  if (!win) return;
+  const name = win.querySelector(".awin-add input").value.trim();
+  const type = win.querySelector(".awin-add select").value;
+  if (!name) return;
+  const parent = state.focus || state.rootId;
+  const id = `${type.toLowerCase()}://${(state.modelName || "app")}/${name.replace(/[^A-Za-z0-9._-]+/g, "-")}`;
+  applyCanvasEdit([{ op: "add_node", node: { id, type, name, parent, evidence: [] } }]);
+}
+
+function makeDraggable(win) {
+  const head = win.querySelector(".awin-head");
+  let dragging = false, sx = 0, sy = 0;
+  head.addEventListener("mousedown", (e) => {
+    dragging = true;
+    sx = e.clientX - win.offsetLeft;
+    sy = e.clientY - win.offsetTop;
+    e.preventDefault();
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    win.style.left = (e.clientX - sx) + "px";
+    win.style.top = (e.clientY - sy) + "px";
+  });
+  window.addEventListener("mouseup", () => { dragging = false; });
+}
+
+function openAspectWindow(aspect) {
+  if (!aspect) return;
+  const winId = "awin-" + aspect;
+  if ($(winId)) return;
+  const offset = document.querySelectorAll("#windows .awin").length * 26;
+  const win = document.createElement("div");
+  win.className = "awin";
+  win.id = winId;
+  win.style.left = (16 + offset) + "px";
+  win.style.top = (16 + offset) + "px";
+  win.innerHTML = `
+    <div class="awin-head"><span>${aspect}</span><button class="awin-close" title="close">\u2715</button></div>
+    <div class="awin-body"></div>
+    <div class="awin-add">
+      <input type="text" placeholder="name" />
+      <select></select>
+      <button class="secondary">Add</button>
+    </div>`;
+  $("windows").appendChild(win);
+  const sel = win.querySelector(".awin-add select");
+  (ASPECT_TYPES[aspect] || []).forEach((t) => {
+    const opt = document.createElement("option");
+    opt.value = t; opt.textContent = t;
+    sel.appendChild(opt);
+  });
+  win.querySelector(".awin-close").addEventListener("click", () => win.remove());
+  win.querySelector(".awin-add button").addEventListener("click", () => addAspectElement(aspect));
+  makeDraggable(win);
+  renderAspectWindow(aspect);
 }
 
 async function loadVolumeInfo() {
@@ -806,6 +943,15 @@ function buildAspectChips() {
       ab.appendChild(opt);
     });
     ab.value = ASPECT_TYPES[state.aspectB] ? state.aspectB : "structure";
+  }
+  const wa = $("win_aspect");
+  if (wa) {
+    wa.innerHTML = "";
+    Object.keys(ASPECT_TYPES).forEach((aspect) => {
+      const opt = document.createElement("option");
+      opt.value = aspect; opt.textContent = aspect;
+      wa.appendChild(opt);
+    });
   }
 }
 
@@ -1104,6 +1250,7 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
   cam.y = (r.height - totalH * cam.k) / 2;
   const apply = () => viewport.setAttribute("transform", `translate(${cam.x},${cam.y}) scale(${cam.k})`);
   apply();
+  if (svg.id === "canvas") { state._cam = cam; state._pos = pos; }
 
   let dragging = false, sx = 0, sy = 0;
   svg.addEventListener("mousedown", (ev) => {
@@ -1155,6 +1302,22 @@ function render() {
   renderBreadcrumb(view.focusId, view.byId);
   drawPane($("canvas"), wrap, empty, state.aspects, view);
   if (split) drawPane($("canvas2"), wrap, null, new Set([state.aspectB]), view);
+
+  const actions = $("node-actions");
+  if (actions) {
+    if (state.selected && state._pos && state._pos.has(state.selected) && state._cam) {
+      const p = state._pos.get(state.selected);
+      const rect = wrap.getBoundingClientRect();
+      const sx = state._cam.x + p.x * state._cam.k;
+      const sy = state._cam.y + p.y * state._cam.k;
+      actions.style.left = Math.max(8, Math.min(rect.width - 250, sx)) + "px";
+      actions.style.top = Math.max(8, sy - 44) + "px";
+      $("node-rename").value = ((state.byId && state.byId.get(state.selected)) || {}).name || "";
+      actions.classList.remove("hidden");
+    } else {
+      actions.classList.add("hidden");
+    }
+  }
 }
 
 function renderBreadcrumb(focusId, byId) {
