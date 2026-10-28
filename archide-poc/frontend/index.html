@@ -8,23 +8,360 @@
 </head>
 <body>
   <header class="topbar">
+    <button id="sidebar-toggle" class="mini" title="show/hide the panels">☰</button>
     <div class="brand">ArchIDE <span class="tag">PoC</span></div>
-    <div class="subtitle">Repository → architecture graph</div>
+    <div class="subtitle">graph-first · aspects from the element</div>
+    <div class="topbar-actions">
+      <select id="project-select" class="mini" title="active project"></select>
+      <button id="project-new" class="mini" title="create a project">＋ Project</button>
+      <button id="theme-toggle" class="mini" title="dark / light theme">◐</button>
+      <button id="palette-open" class="mini" title="command palette (Ctrl/⌘ + K)">⌘K</button>
+      <button id="setup-open" class="mini" title="repository, LLM, context, storage">⚙ Setup</button>
+      <button id="report-open" class="mini" title="validation, metrics, conformance, acceptance">📊 Report</button>
+    </div>
   </header>
 
   <main class="layout">
     <aside class="sidebar">
+      <div id="sidebar-resize" class="resize-x" title="drag to resize the panels"></div>
       <section class="panel">
-        <h2>1 · Repository</h2>
+        <h2>5 · View (slice)</h2>
+        <div class="log">Bounded neighborhood of a node (ancestors/descendants). Select a node on the canvas and press <b>Focus</b>, or type a scope id.</div>
         <label class="field">
-          <span>Address (URL or local path)</span>
-          <input id="repo" type="text" placeholder="https://github.com/owner/repo.git" />
+          <span>Scope (node id, auto-filled from selection)</span>
+          <input id="view_scope" type="text" placeholder="component://app/svc" />
+        </label>
+        <div class="row">
+          <label class="field">
+            <span>Depth</span>
+            <input id="view_depth" type="number" min="0" max="5" value="1" />
+          </label>
+          <label class="field">
+            <span>Direction</span>
+            <select id="view_dir">
+              <option value="down">down</option>
+              <option value="up">up</option>
+              <option value="both">both</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <button id="view-apply" class="secondary">Apply slice</button>
+          <button id="view-reset" class="secondary">Reset</button>
+        </div>
+        <div id="view-info" class="log"></div>
+      </section>
+
+      <section class="panel">
+        <h2>8 · Generate</h2>
+        <label class="field">
+          <span>Model name</span>
+          <input id="gen_model" type="text" placeholder="model name (from a run)" />
+        </label>
+        <button id="gen-run" class="secondary">Generate artifacts</button>
+        <button id="gen-coverage" class="secondary">Coverage</button>
+        <div id="gen-info" class="log"></div>
+      </section>
+
+      <section class="panel" id="arch-panel">
+        <h2>9 · Architect scenario</h2>
+        <label class="field">
+          <span>Model</span>
+          <input id="arch_model" type="text" placeholder="model name (from a run or import)" />
+        </label>
+        <div class="row">
+          <button id="arch-load" class="secondary" type="button">Load</button>
+          <button id="arch-validate" class="secondary" type="button">Validate</button>
+          <button id="arch-eval" class="secondary" type="button">Metrics</button>
+          <button id="arch-coverage" class="secondary" type="button">Coverage</button>
+        </div>
+        <label class="field">
+          <span>Node (impact / work package / markers / conformance)</span>
+          <input id="arch_node" type="text" placeholder="component://..." />
+        </label>
+        <div class="row">
+          <button id="arch-impact" class="secondary" type="button">Impact</button>
+          <button id="arch-workpackage" class="secondary" type="button">Work package</button>
+          <button id="arch-markers" class="secondary" type="button">Markers</button>
+        </div>
+        <div class="row">
+          <button id="arch-matrix" class="secondary" type="button">Coverage matrix</button>
+          <button id="arch-conformance" class="secondary" type="button">Conformance</button>
+          <button id="arch-review" class="secondary" type="button">Review</button>
+          <button id="arch-reconcile" class="secondary" type="button">Reconcile</button>
+        </div>
+        <button id="arch-generate" class="secondary" type="button">Generate artifacts &amp; package</button>
+        <button id="arch-handoff" class="secondary" type="button" title="download one archive: work package + artifacts + markers + README">Download handoff package (.tar.gz)</button>
+        <label class="field">
+          <span>Codegen target (repo name) / result model (diff)</span>
+          <input id="arch_target" type="text" placeholder="trip-approval" />
         </label>
         <label class="field">
-          <span>Agent</span>
+          <span>Code generation mode</span>
+          <select id="arch_codegen_mode" title="llm = ask the model; cli = run an external coding agent">
+            <option value="llm">llm (gateway)</option>
+            <option value="cli">cli (external agent)</option>
+          </select>
+        </label>
+        <div class="row">
+          <button id="arch-codegen" class="secondary" type="button">Code generation</button>
+          <button id="arch-diff" class="secondary" type="button">Diff vs result model</button>
+        </div>
+        <pre id="arch-out" class="log">pick a model and run a step…</pre>
+      </section>
+
+    </aside>
+
+    <section class="stage">
+      <div class="stage-head">
+        <h2>Architecture graph</h2>
+        <div class="stage-actions">
+          <button id="tree-toggle" class="mini" title="show/hide the C4 entity tree">🗂 tree</button>
+          <button id="stop" class="danger" disabled>Stop</button>
+        </div>
+      </div>
+      <div id="canvas-tabs" class="canvas-tabs">
+        <button class="ctab active" data-view="c4" title="C4 view of the whole system">C4</button>
+        <button class="ctab" data-view="process" title="processes and activities">Processes</button>
+        <button class="ctab" data-view="data" title="data structures">Data</button>
+        <button class="ctab" data-view="behavior" title="state and activity diagrams">States</button>
+        <button class="ctab" data-view="interface" title="interfaces and operations">Interfaces</button>
+        <button class="ctab" data-view="deployment" title="deployment nodes">Deployment</button>
+        <button class="ctab" data-view="access" title="roles and permissions">Access</button>
+        <button class="ctab" data-view="quality" title="quality requirements">Quality</button>
+        <span class="grow"></span>
+        <span class="layout-controls" title="auto-grouping of the canvas">
+          <select id="layout-mode" class="mini">
+            <option value="c4">C4 layers</option>
+            <option value="grid">Grid</option>
+            <option value="aspect">By aspect</option>
+          </select>
+          <button id="layout-auto" class="mini" title="arrange the elements automatically">⤢ auto</button>
+          <button id="layout-reset" class="mini" title="forget the saved arrangement">↺</button>
+        </span>
+      </div>
+      <div class="graph-toolbar">
+        <div id="breadcrumb" class="breadcrumb"></div>
+        <div class="source-filter">
+          <button id="src-all" class="mini wide active" title="all sources (differences shown)">all</button>
+          <button id="src-code" class="mini wide" title="only elements derived from source code">code</button>
+          <button id="src-docs" class="mini wide" title="only elements derived from documentation">docs</button>
+        </div>
+        <div class="level-controls">
+          <select id="level-jump" class="mini" title="show one whole C4 level">
+            <option value="">level: auto</option>
+            <option value="0">L1 · System</option>
+            <option value="1">L2 · Container</option>
+            <option value="2">L3 · Component</option>
+            <option value="3">L4 · Module</option>
+          </select>
+          <input id="node-search" class="mini search" type="text" placeholder="find node…" />
+          <button id="node-find" class="mini" title="find a node by name">⌕</button>
+          <button id="export-all" class="mini" title="export every aspect view as one SVG">⤓ all</button>
+        </div>
+        <div class="level-controls" title="how many levels above / below the focus to show">
+          <span class="level-label">↑</span>
+          <input id="lvl-up" class="mini num" type="number" min="0" max="4" value="1" title="levels above the focus" />
+          <span class="level-label">↓</span>
+          <input id="lvl-down" class="mini num" type="number" min="0" max="4" value="2" title="levels below the focus" />
+        </div>
+        <div class="zoom-controls">
+          <button id="level-out" class="mini" title="Up one level (to the parent)">⇧</button>
+          <button id="level-in" class="mini" title="Into the selected node (next level)">⇩</button>
+          <button id="zoom-out" class="mini" title="Zoom the view out (\u2212)">−</button>
+          <button id="zoom-in" class="mini" title="Zoom the view in (+)">+</button>
+          <button id="zoom-reset" class="mini" title="Fit the whole system and go home (0)">⌂</button>
+        </div>
+      </div>
+      <div class="edit-toolbar">
+        <button id="add-node" class="mini" title="add a node to the current level">＋</button>
+        <select id="win_aspect" class="mini wide" title="aspect window"></select>
+        <button id="win-open" class="mini" title="open an aspect window">⧉</button>
+      </div>
+      <div id="lens-bar" class="lens-bar hidden">
+        <span id="lens-aspect" class="chip"></span>
+        <span id="lens-element" class="muted"></span>
+        <select id="lens-mode" class="mini" title="view type of this aspect"></select>
+        <button id="lens-back" class="mini" title="back to the C4 view">← к C4</button>
+      </div>
+      <div class="canvas-row">
+      <aside id="c4-tree" class="c4-tree">
+        <div class="tree-head">C4 entities</div>
+        <div id="tree-body" class="tree-body"></div>
+      </aside>
+      <div id="tree-resize" class="resize-x" title="drag to resize the tree"></div>
+      <div id="canvas-wrap" class="canvas-wrap">
+        <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div id="empty" class="empty">Run a reconstruction to render the graph.</div>
+        <div id="popover" class="popover hidden">
+          <label>name <input id="pop_name" type="text" /></label>
+          <label>type <select id="pop_type"></select></label>
+          <div class="row">
+            <button id="pop-create" class="secondary">Create</button>
+            <button id="pop-cancel" class="secondary">Cancel</button>
+          </div>
+        </div>
+        <div id="windows" class="windows"></div>
+      </div>
+      </div>
+      <div id="validation" class="validation"></div>
+
+    </section>
+
+    <aside id="inspector" class="inspector">
+      <div class="insp-head">
+        <span id="insp-name" class="node-name">—</span>
+        <span id="insp-type" class="node-type"></span>
+        <button id="insp-close" class="mini" title="close (Esc)">✕</button>
+      </div>
+      <div id="insp-facts" class="log"></div>
+      <div class="insp-section">
+        <h3>aspects of this element</h3>
+        <div id="insp-aspects" class="insp-chips"></div>
+      </div>
+      <div class="insp-section">
+        <h3>edit</h3>
+        <div class="row">
+          <input id="node-rename" type="text" placeholder="rename" />
+          <button id="node-rename-apply" class="mini wide">Rename</button>
+        </div>
+        <div class="row">
+          <input id="insp-child-name" type="text" placeholder="child name" />
+          <select id="insp-child-type"></select>
+          <button id="insp-create-child" class="secondary">Create inside</button>
+        </div>
+        <div class="row">
+          <select id="insp-link-target"></select>
+          <select id="insp-link-type"></select>
+          <button id="insp-link" class="secondary">Link</button>
+        </div>
+        <div class="row">
+          <button id="node-focus" class="mini wide" title="focus the view on this node">Focus</button>
+          <button id="node-delete" class="mini wide danger">Delete</button>
+        </div>
+        <div class="row">
+          <button id="insp-validate" class="secondary" title="validate the whole model with the agent">Validate model…</button>
+        </div>
+      </div>
+    </aside>
+
+  <div id="events-drawer" class="drawer open">
+    <div id="drawer-resize" class="resize-y" title="drag to resize the bottom panel"></div>
+    <div class="drawer-head">
+      <div class="bottom-tabs">
+        <button id="btab-events" class="tab">Events</button>
+        <button id="btab-agent" class="tab">Agent</button>
+        <button id="btab-projects" class="tab active">Projects</button>
+        <button id="btab-validation" class="tab">Validation</button>
+      </div>
+      <span id="drawer-status" class="status idle">Idle</span>
+      <button id="drawer-toggle" class="mini" title="collapse / expand">▾</button>
+    </div>
+    <div class="drawer-body">
+      <div id="bpane-events" class="bottom-pane hidden">
+        <div id="status" class="status idle">Idle</div>
+        <pre id="log" class="log"></pre>
+      </div>
+      <div id="bpane-agent" class="bottom-pane hidden">
+      <div class="comm" id="comm">
+        <div id="comm-resize" class="comm-resize" title="drag to resize"></div>
+        <div class="comm-head">
+          <div class="comm-tabs">
+            <button class="tab active" data-tab="activity">Activity</button>
+            <button class="tab" data-tab="answer">Answer to verify</button>
+          </div>
+          <div class="comm-tools">
+            <label class="toggle">user <input id="doc_user" type="text" value="default" /></label>
+            <label class="attach" title="attach a Markdown/CSV document to the chat (goes into RAG)">Attach
+              <input id="doc_file" type="file" accept=".md,.csv,.txt" />
+            </label>
+            <label class="toggle"><input type="checkbox" id="auto-scroll" checked /> autoscroll</label>
+          </div>
+        </div>
+        <div class="comm-body">
+          <div class="tabpane" id="tab-activity">
+            <div id="activity" class="activity"></div>
+            <div id="doc-preview" class="doc-preview hidden">
+              <div class="doc-preview-head">
+                <span id="doc-preview-name"></span>
+                <span id="doc-preview-meta"></span>
+              </div>
+              <pre id="doc-preview-body" class="doc-preview-body"></pre>
+              <div class="row">
+                <button id="doc-confirm" class="secondary">Upload to RAG</button>
+                <button id="doc-cancel" class="secondary">Cancel</button>
+              </div>
+            </div>
+            <div id="prompt-resize" class="prompt-resize" title="drag to resize the prompt"></div>
+            <form id="prompt-form" class="prompt-form">
+              <textarea id="prompt_input" rows="1" placeholder="Message the agent or ask RAG… (↑ history)" autocomplete="off"></textarea>
+              <button id="prompt-send" class="secondary" type="submit">Send</button>
+            </form>
+          </div>
+          <div class="tabpane hidden" id="tab-answer">
+            <textarea id="rag_answer" placeholder="Answer text to verify against RAG chunks"></textarea>
+            <button id="rag-verify" class="secondary">Verify grounding</button>
+            <div id="rag-ground" class="log"></div>
+          </div>
+        </div>
+      </div>
+        <div id="agent-context" class="agent-context">context: —</div>
+        <div class="row">
+          <button id="agent-apply" class="secondary" title="apply a JSON array of edit operations as a transaction">Apply as transaction</button>
+        </div>
+      </div>
+      <div id="bpane-validation" class="bottom-pane hidden">
+        <div class="row">
+          <button id="val-check" class="secondary" title="formal validation + constraints">Check</button>
+          <button id="val-agent" class="secondary" title="ask the agent to review the model">Check with agent</button>
+          <button id="val-propose" class="secondary" title="collect the proposed fixes">Propose fixes</button>
+          <button id="val-apply" class="secondary" title="apply the fixes as a transaction">Apply fixes</button>
+        </div>
+        <div id="val-summary" class="log">no checks yet — press Check or Check with agent</div>
+        <pre id="val-history" class="log"></pre>
+      </div>
+
+      <div id="bpane-projects" class="bottom-pane">
+        <div class="row">
+          <select id="bp_project" class="mini" title="projects"></select>
+          <button id="bp_open" class="secondary">Open project</button>
+          <button id="bp_new" class="secondary">New project…</button>
+          <button id="bp_tpl" class="secondary" title="start a model from a template">From template…</button>
+        </div>
+        <div class="row">
+          <input id="bp_repo" type="text" placeholder="repository URL or local path" />
+          <select id="bp_agent" class="mini"></select>
+          <button id="bp_run" class="secondary" title="reconstruct the repository into this project">Reconstruct</button>
+        </div>
+        <div class="row">
+          <input id="model_load" type="text" placeholder="model name" />
+          <button id="model-load" class="secondary">Load</button>
+          <button id="export" class="secondary" title="download the architecture as a file">Export</button>
+          <button id="bp_doc" class="secondary" title="architecture documentation (Markdown) for the current model">Documentation</button>
+          <label class="attach" title="load a previously saved architecture file">Import
+            <input id="import_file" type="file" accept=".json" />
+          </label>
+        </div>
+        <div id="bp_info" class="log">pick a project, or create one and reconstruct a repository</div>
+      </div>
+    </div>
+  </div>
+  </main>
+
+  <div id="setup-modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>Setup · repository, LLM, context, storage</h2>
+        <button id="setup-close" class="mini" title="close">✕</button>
+      </div>
+
+      <section class="panel">
+        <h2>1 · Defaults</h2>
+        <label class="field">
+          <span>Default agent (used by the Projects tab)</span>
           <select id="agent"></select>
         </label>
-        <button id="run" class="primary">Reconstruct graph</button>
+        <div class="muted">reconstruction starts from the bottom panel → <b>Projects</b> (or from the agent chat)</div>
       </section>
 
       <section class="panel">
@@ -74,6 +411,10 @@
           <span>Max context size, chars</span>
           <input id="max_chars" type="number" min="0" step="1000" />
         </label>
+        <label class="field">
+          <span>Session context budget, chars (0 = unlimited)</span>
+          <input id="max_context" type="number" min="0" step="5000" />
+        </label>
         <div class="row">
           <label class="field">
             <span>Compress at (0–1)</span>
@@ -101,150 +442,64 @@
         <button id="volume-reset" class="secondary">Reset volume</button>
         <div id="volume-info" class="log"></div>
       </section>
+    </div>
+  </div>
 
-      <section class="panel">
-        <h2>5 · View (slice)</h2>
-        <div class="log">Bounded neighborhood of a node (ancestors/descendants). Select a node on the canvas and press <b>Focus</b>, or type a scope id.</div>
-        <label class="field">
-          <span>Scope (node id, auto-filled from selection)</span>
-          <input id="view_scope" type="text" placeholder="component://app/svc" />
-        </label>
-        <div class="row">
-          <label class="field">
-            <span>Depth</span>
-            <input id="view_depth" type="number" min="0" max="5" value="1" />
-          </label>
-          <label class="field">
-            <span>Direction</span>
-            <select id="view_dir">
-              <option value="down">down</option>
-              <option value="up">up</option>
-              <option value="both">both</option>
-            </select>
-          </label>
-        </div>
-        <div class="row">
-          <button id="view-apply" class="secondary">Apply slice</button>
-          <button id="view-reset" class="secondary">Reset</button>
-        </div>
-        <div id="view-info" class="log"></div>
-      </section>
+  <div id="report-modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>Report · validation, metrics, conformance, acceptance</h2>
+        <button id="report-close" class="mini" title="close">✕</button>
+      </div>
+      <div id="report-body" class="log">run a report from the element inspector or the command palette</div>
+    </div>
+  </div>
 
-      <section class="panel">
-        <h2>8 · Generate</h2>
-        <label class="field">
-          <span>Model name</span>
-          <input id="gen_model" type="text" placeholder="model name (from a run)" />
-        </label>
-        <button id="gen-run" class="secondary">Generate artifacts</button>
-        <button id="gen-coverage" class="secondary">Coverage</button>
-        <div id="gen-info" class="log"></div>
-      </section>
+  <div id="project-modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>New project</h2>
+        <button id="project-close" class="mini" title="close">✕</button>
+      </div>
+      <label class="field"><span>Name</span>
+        <input id="project_name" type="text" placeholder="Trip Approval" />
+      </label>
+      <label class="field"><span>Repository (URL or local path, optional)</span>
+        <input id="project_repo" type="text" placeholder="https://github.com/owner/repo.git" />
+      </label>
+      <div class="row">
+        <button id="project-create" class="secondary">Create project</button>
+      </div>
+      <div id="project-note" class="log">a project owns the graph, its runs and the agent chat</div>
+    </div>
+  </div>
 
-      <section class="panel" id="status-panel">
-        <h2>Status</h2>
-        <div id="status" class="status idle">Idle</div>
-        <pre id="log" class="log"></pre>
-      </section>
-    </aside>
+  <div id="tpl-modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>New model from template</h2>
+        <button id="tpl-close" class="mini" title="close">✕</button>
+      </div>
+      <label class="field"><span>Template</span>
+        <select id="tpl-select"></select>
+      </label>
+      <div id="tpl-desc" class="log"></div>
+      <label class="field"><span>Model name</span>
+        <input id="tpl-name" type="text" placeholder="my-system" />
+      </label>
+      <div class="row">
+        <button id="tpl-create" class="secondary">Create model</button>
+      </div>
+      <div id="tpl-note" class="log">a valid starter graph (C4 spine + typical aspects) that you extend</div>
+    </div>
+  </div>
 
-    <section class="stage">
-      <div class="stage-head">
-        <h2>Architecture graph</h2>
-        <div class="stage-actions">
-          <button id="stop" class="danger" disabled>Stop</button>
-          <div id="legend" class="legend"></div>
-        </div>
-      </div>
-      <div class="graph-toolbar">
-        <div id="breadcrumb" class="breadcrumb"></div>
-        <div class="source-filter">
-          <button id="src-all" class="mini wide active" title="all sources (differences shown)">all</button>
-          <button id="src-code" class="mini wide" title="only elements derived from source code">code</button>
-          <button id="src-docs" class="mini wide" title="only elements derived from documentation">docs</button>
-        </div>
-        <div class="split-controls">
-          <label class="toggle"><input type="checkbox" id="split" /> split</label>
-          <select id="aspect-b" title="aspect for pane B"></select>
-        </div>
-        <div class="zoom-controls">
-          <button id="zoom-out" class="mini" title="Zoom out (parent level)">−</button>
-          <button id="zoom-in" class="mini" title="Zoom in (selected node)">+</button>
-          <button id="zoom-reset" class="mini" title="Show the whole system">⌂</button>
-        </div>
-      </div>
-      <div class="edit-toolbar">
-        <input id="model_load" type="text" placeholder="model name" />
-        <button id="model-load" class="mini wide">Load</button>
-        <button id="add-node" class="mini" title="add a node to the current level">＋</button>
-        <select id="win_aspect" class="mini wide" title="aspect window"></select>
-        <button id="win-open" class="mini" title="open an aspect window">⧉</button>
-      </div>
-      <div id="canvas-wrap" class="canvas-wrap">
-        <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
-        <svg id="canvas2" xmlns="http://www.w3.org/2000/svg"></svg>
-        <div id="empty" class="empty">Run a reconstruction to render the graph.</div>
-        <div id="popover" class="popover hidden">
-          <label>name <input id="pop_name" type="text" /></label>
-          <label>type <select id="pop_type"></select></label>
-          <div class="row">
-            <button id="pop-create" class="secondary">Create</button>
-            <button id="pop-cancel" class="secondary">Cancel</button>
-          </div>
-        </div>
-        <div id="node-actions" class="node-actions hidden">
-          <input id="node-rename" type="text" placeholder="rename" />
-          <button id="node-rename-apply" class="mini wide">Rename</button>
-          <button id="node-focus" class="mini wide" title="focus the view on this node">Focus</button>
-          <button id="node-delete" class="mini wide danger">Delete</button>
-        </div>
-        <div id="windows" class="windows"></div>
-      </div>
-      <div id="validation" class="validation"></div>
-      <div class="comm" id="comm">
-        <div id="comm-resize" class="comm-resize" title="drag to resize"></div>
-        <div class="comm-head">
-          <div class="comm-tabs">
-            <button class="tab active" data-tab="activity">Activity</button>
-            <button class="tab" data-tab="answer">Answer to verify</button>
-          </div>
-          <div class="comm-tools">
-            <label class="toggle">user <input id="doc_user" type="text" value="default" /></label>
-            <label class="attach" title="attach a Markdown/CSV document to the chat (goes into RAG)">Attach
-              <input id="doc_file" type="file" accept=".md,.csv,.txt" />
-            </label>
-            <label class="toggle"><input type="checkbox" id="auto-scroll" checked /> autoscroll</label>
-          </div>
-        </div>
-        <div class="comm-body">
-          <div class="tabpane" id="tab-activity">
-            <div id="activity" class="activity"></div>
-            <div id="doc-preview" class="doc-preview hidden">
-              <div class="doc-preview-head">
-                <span id="doc-preview-name"></span>
-                <span id="doc-preview-meta"></span>
-              </div>
-              <pre id="doc-preview-body" class="doc-preview-body"></pre>
-              <div class="row">
-                <button id="doc-confirm" class="secondary">Upload to RAG</button>
-                <button id="doc-cancel" class="secondary">Cancel</button>
-              </div>
-            </div>
-            <div id="prompt-resize" class="prompt-resize" title="drag to resize the prompt"></div>
-            <form id="prompt-form" class="prompt-form">
-              <textarea id="prompt_input" rows="1" placeholder="Message the agent or ask RAG… (↑ history)" autocomplete="off"></textarea>
-              <button id="prompt-send" class="secondary" type="submit">Send</button>
-            </form>
-          </div>
-          <div class="tabpane hidden" id="tab-answer">
-            <textarea id="rag_answer" placeholder="Answer text to verify against RAG chunks"></textarea>
-            <button id="rag-verify" class="secondary">Verify grounding</button>
-            <div id="rag-ground" class="log"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
+  <div id="palette" class="modal hidden">
+    <div class="palette-card">
+      <input id="palette-input" type="text" placeholder="type a command… (↑↓ to move, Enter to run, Esc to close)" autocomplete="off" />
+      <div id="palette-list" class="palette-list"></div>
+    </div>
+  </div>
 
   <script src="/app.js"></script>
 </body>

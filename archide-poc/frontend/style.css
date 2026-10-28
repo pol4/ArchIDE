@@ -11,6 +11,20 @@
   --err: #f85149;
 }
 
+/* UI-6: light theme (toggled from the top bar, persisted) */
+:root[data-theme="light"] {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --panel-2: #eef1f5;
+  --line: #d0d7de;
+  --text: #1f2328;
+  --muted: #57606a;
+  --accent: #1f6feb;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+  --err: #cf222e;
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -42,8 +56,93 @@ body {
 .layout {
   display: grid;
   grid-template-columns: 340px 1fr;
+  grid-template-rows: 1fr auto;      /* row 1 = panels + stage, row 2 = events drawer */
   height: calc(100vh - 53px);
 }
+/* graph-first: panels are hidden by default and open on demand */
+.layout.sidebar-hidden { grid-template-columns: 1fr; }   /* single column: the stage keeps the full width */
+/* UI-2: element inspector as a right column (on demand) */
+.inspector {
+  display: none; flex-direction: column; gap: 10px; padding: 12px;
+  border-left: 1px solid var(--line); background: var(--panel); overflow: auto;
+}
+.layout.inspector-open { grid-template-columns: 340px 1fr 340px; }
+.layout.sidebar-hidden.inspector-open { grid-template-columns: 1fr 340px; }
+.layout.inspector-open .inspector { display: flex; }
+.side-tabs { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.side-tabs #insp-close { margin-left: auto; }
+.side-pane { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.side-pane.hidden { display: none; }
+.agent-context {
+  font: 11px ui-monospace, Menlo, monospace; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+}
+#side-agent { flex: 1; min-height: 0; }
+#side-agent .comm { border: 0; padding: 0; height: auto; flex: 1; min-height: 220px; }
+#side-agent .comm-resize { display: none; }
+.insp-head { display: flex; align-items: center; gap: 8px; }
+.insp-head .node-name { font-weight: 600; }
+.insp-head #insp-close { margin-left: auto; }
+.insp-section h3 {
+  margin: 0 0 6px; font-size: 11px; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--muted);
+}
+.insp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.insp-chips .chip { cursor: pointer; }
+.insp-chips .chip .count { color: var(--muted); margin-left: 4px; }
+.layout.sidebar-hidden .sidebar { display: none; }
+.topbar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.modal {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal.hidden { display: none; }
+/* UI-5: command palette and the full-screen report */
+.palette-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px; width: min(680px, 92vw); max-height: 70vh; display: flex; flex-direction: column; gap: 8px;
+}
+#palette-input { font-size: 15px; padding: 8px 10px; }
+.palette-list { overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.palette-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 9px;
+  border-radius: 6px; cursor: pointer; border: 1px solid transparent;
+}
+.palette-item .group { color: var(--muted); font-size: 11px; min-width: 62px; }
+.palette-item .hint { margin-left: auto; color: var(--muted); font-size: 11px; }
+.palette-item.active { background: var(--panel-2); border-color: var(--accent); }
+#report-modal .modal-card { width: min(1100px, 96vw); }
+#report-body { white-space: pre; font-size: 12px; }
+.modal-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 16px; width: min(760px, 94vw); max-height: 88vh; overflow: auto;
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; }
+.modal-head h2 { margin: 0 0 10px; font-size: 15px; }
+.drawer {
+  grid-column: 1 / -1; grid-row: 2; position: relative;
+  background: var(--panel); border-top: 1px solid var(--line);
+  height: 26px; overflow: hidden; display: flex; flex-direction: column;
+  transition: height 0.18s ease;
+}
+/* a fixed default keeps the canvas usable; the top edge is draggable (UI-9) */
+.drawer.open { height: 240px; max-height: 70vh; }
+.drawer-head {
+  display: flex; align-items: center; gap: 10px; padding: 4px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.drawer-head #drawer-status { margin-left: auto; }
+.bottom-tabs { display: flex; gap: 6px; }
+.bottom-tabs .tab { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+.bottom-tabs .tab.active { color: var(--text); background: var(--panel-2); }
+.drawer-body { overflow: auto; padding: 10px 12px 14px; flex: 1; min-height: 0; display: flex; }
+.bottom-pane { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; }
+.bottom-pane.hidden { display: none; }
+#bpane-agent .comm { border: 0; padding: 0; flex: 1; min-height: 220px; }
+#bpane-agent .comm-resize { display: none; }
+#bpane-projects .row { flex-wrap: wrap; }
+#bpane-projects input[type="text"] { min-width: 320px; }
 
 .sidebar {
   overflow-y: auto;
@@ -69,8 +168,12 @@ body {
 
 .field { display: block; margin-bottom: 10px; }
 .field > span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
-.row { display: flex; gap: 10px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; }
 .row .field { flex: 1; }
+/* the global button rule is 100% wide (good for the stacked panels, wrong inside
+   a toolbar row, where it made every control its own line) */
+.row > button, .row > label.attach, .row > select { width: auto; min-width: 110px; }
+.topbar-actions select { width: auto; min-width: 130px; max-width: 240px; }
 
 input, select {
   width: 100%;
@@ -112,7 +215,14 @@ button.secondary { background: var(--panel); color: var(--text); margin-top: 4px
   white-space: pre-wrap;
 }
 
-.stage { display: flex; flex-direction: column; min-width: 0; }
+.stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+/* UI-3: aspect lens — the whole canvas switches to the notation of one aspect */
+.lens-bar {
+  display: flex; align-items: center; gap: 10px; padding: 6px 10px;
+  border-bottom: 1px solid var(--line); background: var(--panel);
+}
+.lens-bar.hidden { display: none; }
+.lens-bar .chip { cursor: default; }
 .stage-head {
   display: flex;
   align-items: center;
@@ -126,9 +236,63 @@ button.secondary { background: var(--panel); color: var(--text); margin-top: 4px
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
 .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 
+/* UI: the canvas row holds the collapsible C4 tree, its drag handle and the canvas */
+.canvas-row { display: flex; flex: 1; min-height: 0; min-width: 0; }
+.canvas-row.hidden { display: none; }
+
+.c4-tree {
+  width: 230px; flex: 0 0 auto; display: flex; flex-direction: column;
+  border-right: 1px solid var(--line); background: var(--panel);
+  position: relative; overflow: hidden;
+}
+.c4-tree.hidden { display: none; }
+.tree-head {
+  padding: 6px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted); border-bottom: 1px solid var(--line);
+}
+.tree-body { overflow: auto; padding: 4px 0 10px; flex: 1; min-height: 0; }
+.tree-item {
+  display: block; width: 100%; text-align: left; background: none; border: 0;
+  color: var(--text); font: 12px ui-monospace, Menlo, monospace; cursor: pointer;
+  padding: 3px 8px; border-radius: 5px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tree-item:hover { background: var(--panel-2); }
+.tree-item.active { background: var(--panel-2); color: var(--accent); font-weight: 600; }
+
+/* drag handles: a thin strip on the panel edge */
+.resize-x {
+  flex: 0 0 auto; width: 5px; cursor: col-resize; background: transparent;
+  position: relative; z-index: 3;
+}
+.resize-x:hover { background: var(--accent); opacity: 0.5; }
+aside.sidebar > .resize-x { position: absolute; top: 0; right: 0; bottom: 0; }
+aside.sidebar { position: relative; }
+.resize-y {
+  position: absolute; top: -3px; left: 0; right: 0; height: 7px;
+  cursor: ns-resize; z-index: 4;
+}
+.resize-y:hover { background: var(--accent); opacity: 0.45; }
+
+/* UI: canvas view sub-tabs (C4 + one per aspect) */
+.canvas-tabs {
+  display: flex; align-items: center; gap: 4px; padding: 4px 12px;
+  border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap;
+}
+.canvas-tabs .grow { flex: 1; }
+.ctab {
+  width: auto;                 /* the global button rule would stack the tabs */
+  background: none; border: 1px solid transparent; color: var(--muted);
+  padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;
+}
+.ctab:hover { color: var(--text); background: var(--panel-2); }
+.ctab.active { color: var(--text); background: var(--panel-2); border-color: var(--accent); font-weight: 600; }
+.layout-controls { display: inline-flex; align-items: center; gap: 6px; }
+
 .canvas-wrap {
   position: relative;
   flex: 1;
+  min-height: 0;             /* the SVG must not push the grid row open */
   overflow: hidden;
   background:
     radial-gradient(circle at 1px 1px, #20262f 1px, transparent 0) 0 0 / 22px 22px;
@@ -161,9 +325,24 @@ button.secondary { background: var(--panel); color: var(--text); margin-top: 4px
 .node-label { font: 600 12px ui-monospace, Menlo, monospace; fill: var(--text); }
 .node-type { font: 10px ui-monospace, Menlo, monospace; fill: var(--muted); }
 .node-box { stroke-width: 1.5; rx: 7; }
-.edge-line { fill: none; stroke-width: 1.5; opacity: 0.8; }
-.edge-contains { stroke: var(--line); stroke-dasharray: 4 4; opacity: 0.9; }
-.edge-label { font: 9px ui-monospace, Menlo, monospace; fill: var(--muted); }
+/* C4 readability: connections must stay visible over the graph (edges are
+   anchored on box borders and carry their meaning as a label) */
+.edge-line { fill: none; stroke-width: 2.2; opacity: 1; }
+.edge-contains { stroke: var(--line); stroke-dasharray: 4 4; opacity: 0.85; }
+.edge-label { font: 600 10px ui-monospace, Menlo, monospace; fill: var(--text);
+  opacity: 0.95; pointer-events: none; }
+/* Ф6.2: rating an answer in the chat */
+.fb-row { display: inline-flex; gap: 4px; margin-left: 8px; }
+.fb-btn {
+  width: auto; min-width: 0; padding: 1px 6px; height: 20px; line-height: 1;
+  font-size: 12px; background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 5px; cursor: pointer; opacity: 0.75;
+}
+.fb-btn:hover { opacity: 1; border-color: var(--accent); }
+.fb-btn.picked { opacity: 1; border-color: var(--accent); background: #1f2a37; }
+
+.edge-label-pill { fill: var(--panel); opacity: 0.9; stroke: var(--line); stroke-width: 0.6;
+  pointer-events: none; }
 
 .stage-actions { display: flex; align-items: center; gap: 12px; }
 button.danger {
@@ -226,10 +405,16 @@ button.danger:disabled { opacity: 0.45; cursor: default; }
 .breadcrumb button:hover { border-color: var(--accent); }
 .breadcrumb .sep { color: var(--muted); }
 .zoom-controls { display: flex; gap: 6px; }
+.level-controls { display: flex; align-items: center; gap: 4px; }
+.level-controls .level-label { color: var(--muted); font-size: 11px; }
+input.mini.num { width: 38px; padding: 2px 4px; text-align: center; }
 button.mini {
-  width: 30px;
+  /* a fixed 30px clipped every label ("Setup" spilled over "Report"): size to
+     the text and keep a 30px floor for the icon-only buttons */
+  width: auto;
+  min-width: 30px;
   height: 28px;
-  padding: 0;
+  padding: 0 8px;
   background: var(--panel-2);
   color: var(--text);
   font-size: 15px;
@@ -242,6 +427,7 @@ button.mini:hover { border-color: var(--accent); }
 button.mini.wide { width: auto; padding: 0 10px; }
 button.mini.active { border-color: var(--accent); background: #1f2a37; color: #fff; }
 .node-src { font: 9px ui-monospace, Menlo, monospace; fill: var(--muted); }
+.node-detail { font: 9px ui-monospace, Menlo, monospace; fill: var(--accent); }
 .node-note { font: 9px ui-monospace, Menlo, monospace; fill: var(--warn); }
 
 #legend { gap: 6px; }
@@ -440,3 +626,16 @@ button.danger.mini { background: #b62324; border-color: #b62324; color: #fff; }
 .awin-pre { max-height: 280px; overflow: auto; margin: 0; padding: 8px 10px; font: 11px/1.4 ui-monospace, Menlo, monospace; white-space: pre-wrap; color: var(--text); }
 .awin-row .ok { color: var(--ok); }
 .awin-row .warn { color: var(--muted); }
+
+.awin-body svg.awin-svg { display: block; }
+.awin.min .awin-body, .awin.min .awin-add { display: none; }
+.awin-body { resize: both; overflow: auto; }
+input.mini.search { width: 130px; }
+#arch-out { min-height: 90px; max-height: 260px; }
+#arch-panel .row { flex-wrap: wrap; }
+#arch-panel .row button { flex: 1 1 30%; min-width: 92px; }
+.awin-filters { display: flex; gap: 6px; margin-bottom: 6px; }
+.awin-svg .node-name { font-size: 12px; font-weight: 600; }
+.awin-svg .node-type { fill: var(--muted); font-size: 10px; }
+.awin-svg .node-detail { fill: var(--muted); font-size: 10px; }
+.awin-svg .edge-label { fill: var(--muted); font-size: 9px; }
