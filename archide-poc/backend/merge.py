@@ -35,21 +35,32 @@ def merge_graphs(code: dict, docs: dict) -> dict:
 
     merged: dict[str, dict] = {}
     src_key: dict[tuple[str, str], str] = {}
+    by_id: dict[str, str] = {}          # node id -> merged key
 
     def add_nodes(source: str, nodes: list[dict], root) -> None:
         for node in nodes:
-            base = _key(node, root)
-            key = base
-            if key in merged and source in merged[key]["sources"]:
-                i = 2
-                while f"{base}#{i}" in merged:
-                    i += 1
-                key = f"{base}#{i}"
-            src_key[(source, node["id"])] = key
+            nid = node.get("id")
+            # ids are stable URIs: two merged entries must never share one, or the
+            # whole graph fails validation ("duplicate node id"). A documented
+            # element that carries the same id but a slightly different name used
+            # to land under a second key — match on the id first.
+            if nid and nid in by_id:
+                key = by_id[nid]
+            else:
+                base = _key(node, root)
+                key = base
+                if key in merged and source in merged[key]["sources"]:
+                    i = 2
+                    while f"{base}#{i}" in merged:
+                        i += 1
+                    key = f"{base}#{i}"
+            src_key[(source, nid)] = key
             if key not in merged:
                 item = dict(node)
                 item["sources"] = [source]
                 merged[key] = item
+                if nid:
+                    by_id[nid] = key
             else:
                 item = merged[key]
                 if source not in item["sources"]:
@@ -112,7 +123,17 @@ def merge_graphs(code: dict, docs: dict) -> dict:
         if edge["deviation"]:
             edge.setdefault("note", _deviation_note(edge["sources"]))
 
-    return {"nodes": list(merged.values()), "edges": list(merged_edges.values())}
+    nodes_out: list[dict] = []
+    seen_ids: set[str] = set()
+    for item in merged.values():
+        nid = item.get("id")
+        if nid and nid in seen_ids:
+            continue                    # never emit the same id twice
+        if nid:
+            seen_ids.add(nid)
+        nodes_out.append(item)
+
+    return {"nodes": nodes_out, "edges": list(merged_edges.values())}
 
 
 def candidates(code: dict, docs: dict) -> dict:

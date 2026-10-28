@@ -15,17 +15,19 @@ import mimetypes
 import os
 import re
 import subprocess
+import uuid
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from backend import agents, analysis, gateway, maintenance, metamodel, model_store, runtime, sandbox
+from backend import agents, analysis, archdoc, codegen, design, dialogue as dialogue_mod, docs as docs_mod, feedback as feedback_mod, gateway, graphdiff, handoff, layouts, maintenance, metamodel, model_store, projects, rag as rag_mod, runtime, sandbox
 from backend import constraints as constraints_mod
 from backend import generate as generate_mod
 from backend import review as review_mod
 from backend import slice as slice_mod
 from backend.extract import extract_aspects
-from backend import docs as docs_mod
+from backend import templates as templates_mod
 from backend import markers as markers_mod
 from backend.merge import candidates
 from backend import edit as edit_mod
@@ -39,12 +41,14 @@ BASE = Path(__file__).resolve().parent
 FRONTEND = (BASE / "frontend").resolve()
 
 _SANDBOX_RE = re.compile(r"^/sandbox/(repo|meta|event|result|validate)/([0-9a-f]+)$")
+_SANDBOX_SESSION_RE = re.compile(r"^/sandbox/session/([0-9a-f]+)/(repo|next|event|close)$")
+_SANDBOX_SESSION_RESULT_RE = re.compile(r"^/sandbox/session/([0-9a-f]+)/result/([0-9a-f]+)$")
 _RUN_RE = re.compile(r"^/api/runs/([0-9a-f]+)(/cancel)?$")
 _MODEL_RE = re.compile(r"^/api/models(?:/([A-Za-z0-9._-]+))?$")
-_MODEL_SUB_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(aggregations|coverage|slice|constraints|validate)$")
+_MODEL_SUB_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(aggregations|coverage|slice|constraints|validate|scaffold|layout|documentation)$")
 _DOC_RE = re.compile(r"^/api/docs/([0-9a-f]+)(/requirements)?$")
 _EDIT_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(edit|impact|review|reconcile)$")
-_GEN_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(generate|workpackage|markers|coverage-matrix|conformance|conformance-loop)$")
+_GEN_RE = re.compile(r"^/api/models/([A-Za-z0-9._-]+)/(generate|workpackage|markers|coverage-matrix|conformance|conformance-loop|codegen|handoff)$")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -119,6 +123,21 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"audit": gateway.audit_tail()})
         if route == "/api/runs":
             return self._json(200, {"runs": runs.list_runs()})
+        if route == "/api/feedback":
+            return self._json(200, {"feedback": feedback_mod.history(
+                query.get("user", "default"), int(query.get("limit", 50) or 50))})
+
+        if route == "/api/feedback/summary":
+            return self._json(200, {"summary": feedback_mod.summary(query.get("user", "default"))})
+
+        if route == "/api/dialogue":
+            user = query.get("user", "default")
+            return self._json(200, {"turns": dialogue_mod.history(
+                user, query.get("project") or None, int(query.get("limit", 50) or 50))})
+
+        if route == "/api/dialogue/summary":
+            return self._json(200, {"dialogues": dialogue_mod.summary(query.get("user", "default"))})
+
         if route == "/api/docs":
             return self._json(200, {"docs": docs_mod.list_docs(query.get("user", "default"))})
         match_doc = _DOC_RE.match(route)
@@ -127,12 +146,38 @@ class Handler(BaseHTTPRequestHandler):
             if doc is None:
                 return self._json(404, {"detail": "unknown document"})
             return self._json(200, doc)
+        if route == "/api/templates":
+            return self._json(200, {"templates": templates_mod.catalog()})
+
         if route == "/api/metamodel":
             payload = metamodel.registry()
             payload["registry_errors"] = registry_errors()
             return self._json(200, payload)
 
+        if route == "/api/projects":
+            return self._json(200, {"projects": projects.list_summaries()})
+        match_project = re.match(r"^/api/projects/([A-Za-z0-9._-]+)$", route)
+        if match_project:
+            project = projects.get_project(match_project.group(1))
+            if project is None:
+                return self._json(404, {"detail": "unknown project"})
+            return self._json(200, {"project": project})
+
         match = _MODEL_SUB_RE.match(route)
+        if match and match.group(2) == "documentation":
+            model = model_store.load_model(config_mod.MODELS_DIR, match.group(1))
+            if model is None:
+                return self._json(404, {"detail": "unknown model"})
+            meta = {}
+            try:
+                meta["model_hash"] = model_store.model_hash(model)
+            except Exception:  # noqa: BLE001 - the hash is a nicety
+                meta = {}
+            return self._json(200, archdoc.build(match.group(1), model, meta))
+
+        if match and match.group(2) == "layout":
+            return self._json(200, layouts.load(match.group(1)))
+
         if match and match.group(2) in ("aggregations", "coverage", "constraints", "validate"):
             model = model_store.load_model(config_mod.MODELS_DIR, match.group(1))
             if model is None:
@@ -167,6 +212,22 @@ class Handler(BaseHTTPRequestHandler):
         if match and match.group(1) in ("repo", "meta"):
             return self._sandbox_get(match.group(1), match.group(2), query.get("token", ""))
 
+        match = _SANDBOX_SESSION_RE.match(route)
+        if match and match.group(2) == "repo":
+            data = sandbox.session_repo(match.group(1), query.get("token", ""))
+            if data is None:
+                return self._json(404, {"detail": "unknown session"})
+            return self._bytes(200, "application/gzip", data)
+        if match and match.group(2) == "next":
+            try:
+                wait = float(query.get("wait", 120))
+            except ValueError:
+                wait = 120.0
+            payload = sandbox.session_take(match.group(1), query.get("token", ""), wait)
+            if payload is None:
+                return self._json(404, {"detail": "unknown session"})
+            return self._json(200, payload)
+
         if route == "/llm/v1/models":
             return self._json(200, gateway.models(config_mod.load_config()))
 
@@ -183,7 +244,29 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(400, {"detail": f"invalid JSON: {exc}"})
             return self._json(200, config_mod.save_config(patch))
 
+        match_project_put = re.match(r"^/api/projects/([A-Za-z0-9._-]+)$", route)
+        if match_project_put:
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            project = projects.update_project(match_project_put.group(1), body)
+            if project is None:
+                return self._json(404, {"detail": "unknown project"})
+            return self._json(200, {"project": project})
+
         match_sub = _MODEL_SUB_RE.match(route)
+        if match_sub and match_sub.group(2) == "layout":
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            try:
+                saved = layouts.save(match_sub.group(1), body if isinstance(body, dict) else {})
+            except ValueError as exc:
+                return self._json(400, {"detail": str(exc)})
+            return self._json(200, {"ok": True, **saved})
+
         if match_sub and match_sub.group(2) == "constraints":
             model = model_store.load_model(config_mod.MODELS_DIR, match_sub.group(1))
             if model is None:
@@ -216,12 +299,76 @@ class Handler(BaseHTTPRequestHandler):
 
         return self._json(404, {"detail": "not found"})
 
+    def do_DELETE(self) -> None:  # noqa: N802
+        route = urlparse(self.path).path
+        match = _MODEL_SUB_RE.match(route)
+        if match and match.group(2) == "layout":
+            layouts.clear(match.group(1))
+            return self._json(200, {"ok": True})
+        return self._json(404, {"detail": f"no route for {route}"})
+
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         route, query = parsed.path, self._query(parsed.query)
 
+        # Ф8.5: create a model from a template (scaffolding)
+        match_scaffold = _MODEL_SUB_RE.match(route)
+        if match_scaffold and match_scaffold.group(2) == "scaffold":
+            name = match_scaffold.group(1)
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            template = str(body.get("template") or "")
+            graph = templates_mod.scaffold(template, name)
+            if graph is None:
+                return self._json(400, {"detail": f"unknown template `{template}`",
+                                        "templates": [t["id"] for t in templates_mod.catalog()]})
+            validation = validate_graph(graph)
+            if not validation["ok"]:
+                return self._json(422, {"ok": False, "validation": validation})
+            _, digest = model_store.save_model(graph, config_mod.MODELS_DIR, name)
+            return self._json(200, {"ok": True, "model": graph, "hash": digest,
+                                    "template": template, "validation": validation})
+
+        if route == "/api/projects":
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            name = str(body.get("name") or "").strip()
+            if not name:
+                return self._json(400, {"detail": "`name` is required"})
+            project = projects.create_project(name, str(body.get("repo") or "").strip() or None,
+                                              str(body.get("model") or "").strip() or None)
+            return self._json(200, {"project": project})
+        match_project_post = re.match(r"^/api/projects/([A-Za-z0-9._-]+)/(open|chat|view)$", route)
+        if match_project_post:
+            project_id, action = match_project_post.group(1), match_project_post.group(2)
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            if action == "open":
+                payload = projects.open_project(project_id)
+                if payload is None:
+                    return self._json(404, {"detail": "unknown project"})
+                return self._json(200, payload)
+            if action == "chat":
+                project = projects.append_chat(project_id, str(body.get("role") or "user"),
+                                               str(body.get("text") or ""))
+                if project is None:
+                    return self._json(404, {"detail": "unknown project"})
+                return self._json(200, {"ok": True, "chat": project.get("chat") or []})
+            project = projects.set_view(project_id, body.get("view") or {})
+            if project is None:
+                return self._json(404, {"detail": "unknown project"})
+            return self._json(200, {"ok": True, "view": project.get("view")})
         if route == "/api/reconstruct":
             return self._reconstruct()
+
+        if route == "/api/design":
+            return self._design()
         match_gen = _GEN_RE.match(route)
         if match_gen:
             model = model_store.load_model(config_mod.MODELS_DIR, match_gen.group(1))
@@ -242,6 +389,30 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(200, generate_mod.trace_markers(cfg, model, str(body.get("node") or "")))
                 if view == "coverage-matrix":
                     return self._json(200, generate_mod.coverage_matrix(model))
+                if view == "handoff":
+                    node = str(body.get("node") or "")
+                    payload, filename = handoff.build_bundle(cfg, match_gen.group(1), model, node, body.get("kinds"))
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/gzip")
+                    self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+                    self.send_header("X-Archide-Generated-At", str(int(time.time())))
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
+                if view == "codegen":
+                    node = str(body.get("node") or "")
+                    package = generate_mod.workpackage(model, node)
+                    artifacts = generate_mod.generate(model, body.get("kinds"))
+                    markers = generate_mod.trace_markers(cfg, model, node)
+                    target = str(body.get("target") or match_gen.group(1))
+                    mode = str(body.get("mode") or (cfg.get("codegen", {}) or {}).get("mode") or "llm")
+                    if mode == "cli":
+                        result = codegen.generate_with_cli(cfg, target, package, artifacts,
+                                                            markers.get("markers") or [])
+                    else:
+                        result = codegen.generate(cfg, target, package, artifacts, markers.get("markers") or [])
+                    return self._json(200, result)
                 if view == "conformance-loop":
                     return self._json(200, generate_mod.conformance_loop(cfg, model, str(body.get("node") or "")))
                 return self._json(200, generate_mod.conformance(cfg, model, body.get("markers")))
@@ -334,6 +505,53 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(400, {"detail": f"invalid JSON: {exc}"})
             return self._json(200, {"results": docs_mod.search(str(body.get("user") or "default"),
                                                                str(body.get("query") or ""), int(body.get("top", 5)))})
+        if route == "/api/feedback":
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            try:
+                item = feedback_mod.record(str(body.get("user") or "default"),
+                                           str(body.get("kind") or "explicit"),
+                                           str(body.get("signal") or ""),
+                                           body.get("about"), body.get("comment"), body.get("score"))
+            except ValueError as exc:
+                return self._json(400, {"detail": str(exc)})
+            return self._json(200, {"ok": True, "feedback": item})
+
+        if route == "/api/dialogue":
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            try:
+                turn = dialogue_mod.record(str(body.get("user") or "default"),
+                                           str(body.get("role") or "user"),
+                                           str(body.get("text") or ""),
+                                           body.get("project"), body.get("provenance"),
+                                           body.get("kind"))
+            except ValueError as exc:
+                return self._json(400, {"detail": str(exc)})
+            project_id = str(body.get("project") or "").strip()
+            if project_id:
+                projects.append_chat(project_id, turn["role"], turn["text"])
+            return self._json(200, {"ok": True, "turn": turn})
+
+        if route == "/api/rag/answer":
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            cfg = config_mod.load_config()
+            try:
+                result = rag_mod.answer(cfg, str(body.get("user") or "default"),
+                                        str(body.get("query") or ""), int(body.get("top", 5) or 5))
+            except ValueError as exc:
+                return self._json(400, {"detail": str(exc)})
+            except Exception as exc:  # noqa: BLE001 - the model may be unreachable
+                return self._json(502, {"detail": f"the model could not answer: {exc}"})
+            return self._json(200, result)
+
         if route == "/api/rag/verify":
             try:
                 body = self._read_json()
@@ -365,6 +583,20 @@ class Handler(BaseHTTPRequestHandler):
             except json.JSONDecodeError as exc:
                 return self._json(400, {"detail": f"invalid JSON: {exc}"})
             return self._json(200, candidates(body.get("code") or {}, body.get("docs") or {}))
+        if route == "/api/graphdiff":
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            target = body.get("target")
+            result = body.get("result")
+            if not isinstance(target, dict) and body.get("target_model"):
+                target = model_store.load_model(config_mod.MODELS_DIR, str(body["target_model"]))
+            if not isinstance(result, dict) and body.get("result_model"):
+                result = model_store.load_model(config_mod.MODELS_DIR, str(body["result_model"]))
+            if not isinstance(target, dict) or not isinstance(result, dict):
+                return self._json(400, {"detail": "body needs `target`/`result` graphs or `target_model`/`result_model` names"})
+            return self._json(200, graphdiff.diff(target, result, scope=str(body.get("scope") or "") or None))
         if route == "/api/eval":
             try:
                 body = self._read_json()
@@ -382,7 +614,9 @@ class Handler(BaseHTTPRequestHandler):
             files = [(str(f.get("path") or ""), str(f.get("content") or "")) for f in (body.get("files") or []) if isinstance(f, dict)]
             result = extract_aspects(files, graph=body.get("graph"))
             return self._json(200, {"nodes": result["nodes"], "edges": result["edges"],
-                                    "stats": {"nodes": len(result["nodes"]), "edges": len(result["edges"])}})
+                                    "dropped": result.get("dropped") or [],
+                                    "stats": {"nodes": len(result["nodes"]), "edges": len(result["edges"]),
+                                              "dropped": len(result.get("dropped") or [])}})
         match_slice = _MODEL_SUB_RE.match(route)
         if match_slice and match_slice.group(2) == "slice":
             return self._slice(match_slice.group(1))
@@ -419,6 +653,30 @@ class Handler(BaseHTTPRequestHandler):
             if kind == "validate":
                 return self._sandbox_validate(job_id, token)
 
+        match = _SANDBOX_SESSION_RESULT_RE.match(route)
+        if match:
+            token = query.get("token", "")
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            ok = sandbox.session_put_result(match.group(1), token, match.group(2),
+                                            body.get("graph"), body.get("error"))
+            return self._json(200 if ok else 404, {"ok": ok})
+        match = _SANDBOX_SESSION_RE.match(route)
+        if match and match.group(2) in ("event", "close"):
+            session_id, kind, token = match.group(1), match.group(2), query.get("token", "")
+            if kind == "close":
+                ok = sandbox.session_close(session_id, token)
+                return self._json(200 if ok else 404, {"ok": ok})
+            try:
+                body = self._read_json()
+            except json.JSONDecodeError as exc:
+                return self._json(400, {"detail": f"invalid JSON: {exc}"})
+            ok = sandbox.session_event(session_id, token,
+                                       str(body.get("type") or "log"), str(body.get("text") or ""))
+            return self._json(200 if ok else 404, {"ok": ok})
+
         return self._json(404, {"detail": "not found"})
 
     # -- handlers --------------------------------------------------------
@@ -434,8 +692,48 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(400, {"detail": f"unknown agent: {agent_id}"})
 
         cfg = config_mod.load_config()
-        run_id = runs.start(repo, agent_id, cfg)
+        options = {
+            "model": str(body.get("model") or "").strip(),
+            "aspect_list": body.get("aspect_list") or None,
+            "project": str(body.get("project") or "").strip() or None,
+        }
+        run_id = runs.start(repo, agent_id, cfg, options)
         return self._json(200, {"run_id": run_id})
+
+    def _design(self) -> None:
+        """Synthesise an architecture from a description (+ attached documents)."""
+        try:
+            body = self._read_json()
+        except json.JSONDecodeError as exc:
+            return self._json(400, {"detail": f"invalid JSON: {exc}"})
+        description = str(body.get("description") or "").strip()
+        if len(description) < 20:
+            return self._json(400, {"detail": "a description of at least 20 characters is required"})
+        name = str(body.get("name") or "").strip() or f"design-{uuid.uuid4().hex[:6]}"
+        agent_id = body.get("agent") or "builtin"
+        if not agents.get_agent(agent_id):
+            return self._json(400, {"detail": f"unknown agent: {agent_id}"})
+
+        cfg = config_mod.load_config()
+        user = str(body.get("user") or "default")
+        attached = []
+        for doc_id in (body.get("docs") or []):
+            doc = docs_mod.load_doc(user, str(doc_id))
+            if doc:
+                attached.append({"name": doc.get("name") or doc_id, "content": doc.get("content") or ""})
+        try:
+            root, files = design.material(name, description, attached)
+        except ValueError as exc:
+            return self._json(400, {"detail": str(exc)})
+
+        options = {
+            "model": str(body.get("model") or "").strip(),
+            "aspect_list": body.get("aspect_list") or None,
+            "project": str(body.get("project") or "").strip() or None,
+        }
+        run_id = runs.start(str(root), agent_id, cfg, options)
+        return self._json(200, {"run_id": run_id, "material": str(root), "files": len(files),
+                                "documents": [d["name"] for d in attached]})
 
     def _slice(self, model_name) -> None:
         if model_name is None:
@@ -588,8 +886,14 @@ def main() -> None:
     host = os.environ.get("ARCHIDE_HOST", "127.0.0.1")
     port = int(os.environ.get("ARCHIDE_PORT", "8000"))
     runtime.PUBLIC_BASE = os.environ.get("ARCHIDE_PUBLIC_URL") or f"http://host.docker.internal:{port}"
+    # Loopback base for the in-process (local) runner: `host.docker.internal`
+    # is only resolvable from inside a container, never from the host.
+    runtime.LOCAL_BASE = f"http://127.0.0.1:{port}"
     gateway.ensure_token(config_mod.load_config())  # ensure a gateway token exists
     agents.ensure_manifest()  # ensure the agent plugin manifest exists
+    moved = model_store.migrate_legacy_names(config_mod.MODELS_DIR)  # legacy `<name>.git.json`
+    if moved:
+        print(f"migrated {len(moved)} legacy model file(s): {', '.join(sorted(moved))}")
 
     httpd = ThreadingHTTPServer((host, port), Handler)
     print(f"ArchIDE PoC -> http://{host}:{port}  (sandbox/gateway base: {runtime.PUBLIC_BASE})")

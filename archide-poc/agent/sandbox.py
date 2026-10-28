@@ -68,35 +68,95 @@ def collect(root: Path) -> list[tuple[str, str]]:
     return files
 
 
-def main() -> int:
-    base = os.environ["ARCHIDE_SANDBOX_BASE"].rstrip("/")
-    job = os.environ["ARCHIDE_JOB_ID"]
-    token = os.environ["ARCHIDE_JOB_TOKEN"]
-    result_url = f"{base}/sandbox/result/{job}?token={token}"
-
-    repo_dir = Path(os.environ.get("ARCHIDE_WORK", "/work")) / "repo"
+def _fetch_repo(url: str, repo_dir: Path) -> None:
+    data = _get(url)
     shutil.rmtree(repo_dir, ignore_errors=True)
     repo_dir.mkdir(parents=True, exist_ok=True)
-    data = _get(f"{base}/sandbox/repo/{job}?token={token}")
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
         try:
             tar.extractall(repo_dir, filter="data")
         except TypeError:  # Python < 3.12
             tar.extractall(repo_dir)
 
-    meta = json.loads(_get(f"{base}/sandbox/meta/{job}?token={token}"))
-    files = collect(repo_dir)
-    print(f"collected {len(files)} files", file=sys.stderr, flush=True)
 
-    llm = {
+def _llm_from_env() -> dict:
+    return {
         "base_url": os.environ.get("LLM_BASE_URL", ""),
         "api_key": os.environ.get("LLM_API_KEY", ""),
         "model": os.environ.get("LLM_MODEL", ""),
         "mode": os.environ.get("LLM_MODE", "live"),
         "timeout": float(os.environ.get("LLM_TIMEOUT", "180")),
         "max_repairs": int(os.environ.get("ARCHIDE_MAX_REPAIRS", "3")),
+        "max_context_chars": int(os.environ.get("ARCHIDE_MAX_CONTEXT", "0")),
         "validate_url": os.environ.get("ARCHIDE_VALIDATE_URL", ""),
     }
+
+
+def _run_session(base: str, session_id: str) -> int:
+    """Continuous session (Ф3.10): one container serves every request of a run.
+
+    The repository is downloaded once; afterwards the container takes requests
+    (base pass, aspect passes, repairs) from the host queue until it is closed.
+    """
+    token = os.environ["ARCHIDE_SESSION_TOKEN"]
+    repo_dir = Path(os.environ.get("ARCHIDE_WORK", "/work")) / "repo"
+    event_url = f"{base}/sandbox/session/{session_id}/event?token={token}"
+    emit = lambda kind, text: _post_event(event_url, kind, text)
+    try:
+        _fetch_repo(f"{base}/sandbox/session/{session_id}/repo?token={token}", repo_dir)
+        files = collect(repo_dir)
+        print(f"session {session_id}: collected {len(files)} files", file=sys.stderr, flush=True)
+        _prepare_storage(emit)
+        llm = _llm_from_env()
+        from agent.core import Session
+
+        session = None   # one conversation for the whole session (files go once)
+
+        while True:
+            payload = json.loads(_get(f"{base}/sandbox/session/{session_id}/next?token={token}&wait=120"))
+            if payload.get("done"):
+                print("session closed", flush=True)
+                return 0
+            if payload.get("empty"):
+                continue
+            request_id = payload["rid"]
+            result_url = f"{base}/sandbox/session/{session_id}/result/{request_id}?token={token}"
+            repo_name = payload.get("repo_name") or "repo"
+            try:
+                if session is None:
+                    session = Session(repo_name, files, llm, on_event=emit)
+                    graph = session.ask(payload["prompt"], include_files=True)
+                else:
+                    graph = session.ask(payload["prompt"], include_files=False)
+                _save_artifact(graph, repo_name, emit)
+                _post(result_url, {"graph": graph})
+                print(f"request {request_id}: ok", flush=True)
+            except Exception as exc:  # noqa: BLE001 - one bad request must not kill the session
+                _post(result_url, {"error": str(exc)})
+                print(f"request {request_id}: error: {exc}", file=sys.stderr, flush=True)
+    except Exception as exc:  # noqa: BLE001 - report to the host
+        print(f"session error: {exc}", file=sys.stderr, flush=True)
+        return 1
+
+
+def main() -> int:
+    base = os.environ["ARCHIDE_SANDBOX_BASE"].rstrip("/")
+    session_id = os.environ.get("ARCHIDE_SESSION_ID", "")
+    if session_id:
+        return _run_session(base, session_id)
+
+    job = os.environ["ARCHIDE_JOB_ID"]
+    token = os.environ["ARCHIDE_JOB_TOKEN"]
+    result_url = f"{base}/sandbox/result/{job}?token={token}"
+
+    repo_dir = Path(os.environ.get("ARCHIDE_WORK", "/work")) / "repo"
+    _fetch_repo(f"{base}/sandbox/repo/{job}?token={token}", repo_dir)
+
+    meta = json.loads(_get(f"{base}/sandbox/meta/{job}?token={token}"))
+    files = collect(repo_dir)
+    print(f"collected {len(files)} files", file=sys.stderr, flush=True)
+
+    llm = _llm_from_env()
 
     try:
         from agent.core import run

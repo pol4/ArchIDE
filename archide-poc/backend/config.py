@@ -22,10 +22,28 @@ DEFAULT_CONFIG = {
         "base_url": "http://localhost:11434/v1",
         "api_key": "",
         "model": "qwen2.5-coder:7b",
+        # Ф3.11: how much of the accumulated session conversation may be sent
+        # (0 = unlimited). A long run trims its oldest exchanges to stay inside.
+        "max_context_chars": 60000,
         # "live" -> call the configured OpenAI-compatible endpoint
         # "mock" -> deterministic graph from the file tree (no LLM needed)
         "mode": "live",
         "timeout": 180,
+    },
+    # code-generation handoff (Ф8.2/Ф8.2b): "llm" asks the model through the
+    # gateway; "cli" runs an external coding agent as a command in a work dir
+    "codegen": {
+        "mode": "llm",
+        "max_files": 60,
+        "max_file_chars": 60000,
+        "max_total_chars": 400000,
+        "max_retries": 2,
+    },
+    # external coding-agent command (Ф8.2): placeholders {workdir}, {prompt_file}
+    "codegen_cli": {
+        "command": "",
+        "timeout": 1800,
+        "env": {},
     },
     "agent": {
         # "docker" -> run the agent as a network service in a container
@@ -79,8 +97,27 @@ DEFAULT_CONFIG = {
         # two-pass analysis: reconstruct from source code first, then compare
         # with the documentation and surface deviations
         "compare_docs": True,
+        # Ф8.4: a repository with only documents (ТЗ/требования) is designed,
+        # not reconstructed — the base pass runs over the documentation
+        "design_from_docs": True,
         # aspect-aware extraction from source files (Ф3.1)
         "extract_aspects": True,
+        # sequential, agent-verified reconstruction of the remaining aspects
+        # (Ф3.5): after the structural C4 pass, each aspect is reconstructed and
+        # merged on its own, so the graph is extended in small checked steps.
+        "aspect_passes": True,
+        "aspect_list": ["data", "interface", "behavior", "process", "deployment", "access", "quality"],
+        # Ф3.7: do not rebuild an aspect the graph already carries, and cap how
+        # many elements one pass may add (0 = unlimited)
+        # skip an aspect only when it is already covered — meant for RESUME runs
+        # (a full run should reconstruct every aspect, even if heuristics found some)
+        "aspect_skip_existing": False,
+        "aspect_skip_min": 1,
+        "aspect_max_nodes": 80,
+        # Ф3.9: report elements left without relationships/evidence after a run,
+        # and let the agent fill them in (evidence + relationships, safely merged)
+        "reconcile_report": True,
+        "reconcile_fix": True,
     },
 }
 

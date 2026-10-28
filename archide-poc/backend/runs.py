@@ -85,32 +85,42 @@ def _persist(run: Run) -> None:
         pass
 
 
-def start(repo: str, agent_id: str, cfg: dict) -> str:
+def start(repo: str, agent_id: str, cfg: dict, options: dict | None = None) -> str:
     run = Run(secrets.token_hex(8), repo=repo, agent=agent_id)
+    run.options = dict(options or {})
     with _lock:
         _runs[run.id] = run
     _persist(run)
-    threading.Thread(target=_worker, args=(run, repo, agent_id, cfg), daemon=True).start()
+    threading.Thread(target=_worker, args=(run, repo, agent_id, cfg, run.options), daemon=True).start()
     return run.id
 
 
-def _worker(run: Run, repo: str, agent_id: str, cfg: dict) -> None:
+def _worker(run: Run, repo: str, agent_id: str, cfg: dict, options: dict | None = None) -> None:
     try:
-        graph, meta = reconstruct(repo, agent_id, cfg, run=run)
+        graph, meta = reconstruct(repo, agent_id, cfg, run=run, options=options)
         run.meta = meta
         run.graph = graph
         run.validation = validate_graph(graph)
-        run.status = "done" if run.validation["ok"] else "invalid"
 
+        # Persist BEFORE the status flips: a client that sees `done` must already
+        # find `meta.model_path`, otherwise it loads nothing (the poll stops at
+        # `done` and never re-reads the metadata).
         try:
             from . import model_store
-            name = pathlib.Path(str(repo).rstrip("/")).name or "model"
-            path, digest = model_store.save_model(graph, config_mod.MODELS_DIR, name)
+            from . import projects as projects_mod
+            from .runner import model_name_for
+            model_name = model_name_for(repo)
+            path, digest = model_store.save_model(graph, config_mod.MODELS_DIR, model_name)
+            project_id = (options or {}).get("project")
+            if project_id:
+                projects_mod.attach_run(project_id, run.id, model_name, repo)
             meta["model_path"] = str(path)
             meta["model_hash"] = digest
             run.add_event("status", f"model saved: {path.name} ({digest})")
         except Exception as exc:  # noqa: BLE001 - persistence is best-effort
             run.add_event("log", f"model not saved: {exc}")
+
+        run.status = "done" if run.validation["ok"] else "invalid"
 
         if run.status == "invalid":
             run.add_event("error", "graph failed validation: " + "; ".join(run.validation["errors"][:5]))

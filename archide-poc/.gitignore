@@ -1,4 +1,15 @@
 .venv/
 __pycache__/
 *.pyc
+
+# Runtime state (machine-local: model graphs, run history, telemetry, user docs).
+# Only data/agents.json (seed manifest) and data/.gitkeep stay tracked.
 data/config.json
+data/models/
+data/runs/
+data/users/
+data/scratch/
+data/generated/
+data/gateway-audit.jsonl
+data/layouts/
+data/projects/

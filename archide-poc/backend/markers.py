@@ -18,10 +18,21 @@ TRACE_FIELDS = ("artifact", "chain", "lease")
 
 
 def _key(cfg: dict) -> str:
-    key = (cfg.get("markers") or {}).get("key") or ""
+    """Host-held HMAC key, stable across calls.
+
+    The key is minted once and persisted; a caller whose config predates the
+    first mint gets the persisted key (and its own config is updated), otherwise
+    signing and verification would use different keys.
+    """
+    section = dict((cfg or {}).get("markers") or {}) if isinstance(cfg, dict) else {}
+    key = section.get("key") or ""
+    if not key:
+        key = (config_mod.load_config().get("markers") or {}).get("key") or ""
     if not key:
         key = secrets.token_hex(32)
         config_mod.save_config({"markers": {"key": key}})
+    if isinstance(cfg, dict):
+        cfg["markers"] = {**section, "key": key}
     return key
 
 

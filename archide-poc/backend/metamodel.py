@@ -153,8 +153,9 @@ ANCHORS: dict[str, set[str]] = {
     "State": {"StateMachine"},
     "Transition": {"StateMachine"},
     "Process": {"Container", "System", "Component"},
-    "Activity": {"Process"},
-    "Task": {"Process", "Activity"},
+    "Activity": {"Process", "Activity", "Participant"},
+    "Task": {"Process", "Activity", "Participant"},
+    "Gateway": {"Process", "Activity", "Participant"},
     "Role": {"System", "Container"},
     "Permission": {"Role"},
     "Policy": {"System", "Container"},
@@ -184,6 +185,15 @@ REFERENTIAL_ACTIONS: dict[str, str] = {
     "implemented_by": "cascade",
     "tested_by": "cascade",
 }
+
+
+def aspect_of(type_name) -> str:
+    """Which aspect a node type belongs to (the first one that claims it)."""
+    name = str(type_name or "")
+    for aspect, spec in ASPECTS.items():
+        if name in (spec.get("node_types") or set()):
+            return aspect
+    return "structure"
 
 
 def registry() -> dict:

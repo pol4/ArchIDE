@@ -5,3 +5,9 @@ data/config.json
 .DS_Store
 tests/browser/node_modules/
 tests/browser/package-lock.json
+
+# stray model exports written to the repository root (models live in
+# archide-poc/data/models/ and are runtime state)
+/ArchIDE.json
+/TripApproval.json
+/*.archide.json

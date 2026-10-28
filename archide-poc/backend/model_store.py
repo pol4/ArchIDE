@@ -55,6 +55,31 @@ def save_model(model: dict, models_dir, name: str) -> tuple[pathlib.Path, str]:
     return path, digest
 
 
+def migrate_legacy_names(models_dir) -> list[str]:
+    """Rename a legacy `<name>.git.json` to `<name>.json` when the target is free.
+
+    Repository names used to keep their `.git` suffix, so a model could be stored
+    as `repo.git.json` while later runs wrote `repo.json`, leaving the old file as
+    an orphaned duplicate. This is a one-time, explicit migration: it only
+    **renames**, and only when the new name is not taken — it never deletes, so a
+    model that is legitimately called `<name>.git` cannot be destroyed.
+    """
+    directory = pathlib.Path(models_dir)
+    if not directory.is_dir():
+        return []
+    moved: list[str] = []
+    for legacy in sorted(directory.glob("*.git.json")):
+        target = legacy.with_name(legacy.name[: -len(".git.json")] + ".json")
+        if target.exists() or target == legacy:
+            continue
+        try:
+            legacy.rename(target)
+        except OSError:
+            continue
+        moved.append(target.name[: -len(".json")])
+    return moved
+
+
 def list_models(models_dir) -> list[dict]:
     directory = pathlib.Path(models_dir)
     out: list[dict] = []

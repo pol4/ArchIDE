@@ -9,3 +9,8 @@ class CancelledError(Exception):
 # Base URL that sandbox containers use to reach this ArchIDE server
 # (sandbox + LLM gateway). Set by the server at startup.
 PUBLIC_BASE = ""
+
+# Loopback base URL of this server, reachable by an in-process (local) runner.
+# Set by the server at startup. Unlike PUBLIC_BASE it never uses the
+# container-only hostname `host.docker.internal`.
+LOCAL_BASE = ""

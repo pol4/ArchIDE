@@ -281,70 +281,136 @@ def _validate_via_tool(url: str, graph: dict) -> list[str]:
     return list((payload.get("validation") or {}).get("errors") or [])
 
 
-def _validate(llm: dict, graph: dict) -> list[str]:
+def _validate(llm: dict, graph: dict, emit=None) -> list[str]:
     """Prefer the formal validation tool; fall back to the local validator."""
     url = llm.get("validate_url")
     if url:
         try:
             return _validate_via_tool(url, graph)
-        except Exception:  # noqa: BLE001 - fall back to the local validator
+        except Exception as exc:  # noqa: BLE001 - fall back to the local validator
+            if emit is not None:
+                emit("error", f"formal validator unreachable ({exc}); "
+                              "using the weaker local validator")
             return validate_graph(graph)
+    if emit is not None:
+        emit("error", "no formal validator configured; using the weaker local validator")
     return validate_graph(graph)
 
 
+class Session:
+    """Continuous LLM conversation for one run (Ф3.10).
+
+    The collected sources are sent **once** (the first request); every later
+    request is a short user message appended to the same conversation, so the
+    model keeps its context (and, for a local server, its prompt cache) instead
+    of receiving the whole repository again per pass.
+    """
+
+    def __init__(self, repo_name: str, files: FileList, llm: dict, on_event=None):
+        self.repo_name = repo_name
+        self.files = files
+        self.llm = llm
+        self.emit = on_event or (lambda *_a: None)
+        self.messages: list[dict] = []
+
+    def _fit(self) -> None:
+        """Keep the conversation inside the context budget (Ф3.11).
+
+        A long run accumulates the base prompt (with the sources) plus every
+        aspect pass and its repairs; left alone it exceeds the model window
+        ("ran out of context space"). We drop the oldest exchanges, keep the
+        newest ones, and finally cap the first message — so every request fits.
+        """
+        budget = int(self.llm.get("max_context_chars") or 0)
+        if not budget or not self.messages:
+            return
+        size = lambda msgs: sum(len(m.get("content") or "") for m in msgs)
+        before = size(self.messages)
+        if before <= budget:
+            return
+        suffix = "\n[sources truncated to fit the context budget]"
+        # What must survive is the *material*: the opening sources, and the newest
+        # request (an aspect prompt carries its own sources). The middle of a long
+        # run is stale chatter. Dropping the newest message instead — which the
+        # previous rule did once the tail grew past the budget — left the model
+        # with a stub and made an aspect pass return an empty graph.
+        if len(self.messages) <= 3:
+            keep = [dict(m) for m in self.messages]
+        else:
+            keep = [dict(self.messages[0])] + [dict(m) for m in self.messages[-2:]]
+        # cap the material first, then the newest, then the middle, until it fits
+        order = [0] + [i for i in range(len(keep) - 1, 0, -1)]
+        for index in order:
+            if size(keep) <= budget:
+                break
+            rest = size([m for i, m in enumerate(keep) if i != index])
+            keep[index]["content"] = ((keep[index].get("content") or "")[:max(200, budget - rest - len(suffix))]
+                                      + suffix)
+        self.messages = keep
+        self.emit("status", f"session context trimmed: {before} → {size(self.messages)} chars (budget {budget})")
+
+    def ask(self, prompt: str, include_files: bool = False) -> dict:
+        emit = self.emit
+        llm = self.llm
+
+        if llm.get("mode") == "mock":
+            emit("reasoning", "mock mode: building the graph from the file tree")
+            graph = mock_graph(self.repo_name, self.files)
+            emit("status", f"validated graph: {len(graph['nodes'])} nodes, {len(graph['edges'])} edges, ok")
+            return graph
+
+        max_repairs = int(llm.get("max_repairs", 3))
+        if include_files or not self.messages:
+            self.messages = self.messages + build_messages(prompt, self.files)
+        else:
+            self.messages = self.messages + [{"role": "user", "content": prompt}]
+        self._fit()   # every request must fit the context budget
+        emit("status", f"calling the LLM ({llm.get('model', '?')}); up to {max_repairs} repair attempt(s)")
+
+        graph = None
+        errors: list[str] = []
+        content = ""
+        for attempt in range(max_repairs + 1):
+            message = call_llm(llm, self.messages)
+            content = message.get("content") or ""
+            if message.get("reasoning"):
+                emit("reasoning", message["reasoning"])
+            if content:
+                emit("output", content)
+
+            graph, error = _try_parse(content)
+            errors = [error] if graph is None else _validate(llm, graph, emit)
+            if not errors:
+                break
+
+            emit("error", f"validation ({attempt + 1}/{max_repairs + 1}): " + "; ".join(errors[:6]))
+            if attempt >= max_repairs:
+                break
+            emit("status", f"refining graph ({attempt + 1}/{max_repairs}) to fix {len(errors)} issue(s)")
+            self.messages = self.messages + [
+                {"role": "assistant", "content": content[:4000]},
+                {
+                    "role": "user",
+                    "content": REPAIR_INSTRUCTION + "\nFix these issues:\n- " + "\n- ".join(errors[:12]),
+                },
+            ]
+
+        if graph is None:
+            raise ValueError(
+                f"invalid architecture graph from the LLM: {errors[0] if errors else 'unknown'}. "
+                f"Raw response snippet: {content[:600]!r}"
+            )
+        if errors:
+            emit("error", "graph still has issues after repair: " + "; ".join(errors[:6]))
+        else:
+            emit("status", f"validated graph: {len(graph['nodes'])} nodes, {len(graph['edges'])} edges, ok")
+        return graph
+
+
 def run(prompt: str, repo_name: str, files: FileList, llm: dict, on_event=None) -> dict:
-    """Produce the graph from collected files, with agent-side validation.
+    """One-shot reconstruction (single request) with agent-side validation.
 
     ``on_event(kind, text)`` (optional) receives live activity: ``status``,
     ``reasoning``, ``output``, ``log``, ``error``.
     """
-    emit = on_event or (lambda *_a: None)
-
-    if llm.get("mode") == "mock":
-        emit("reasoning", "mock mode: building the graph from the file tree")
-        graph = mock_graph(repo_name, files)
-        emit("status", f"validated graph: {len(graph['nodes'])} nodes, {len(graph['edges'])} edges, ok")
-        return graph
-
-    max_repairs = int(llm.get("max_repairs", 3))
-    messages = build_messages(prompt, files)
-    emit("status", f"calling the LLM ({llm.get('model', '?')}); up to {max_repairs} repair attempt(s)")
-
-    graph = None
-    errors: list[str] = []
-    content = ""
-    for attempt in range(max_repairs + 1):
-        message = call_llm(llm, messages)
-        content = message.get("content") or ""
-        if message.get("reasoning"):
-            emit("reasoning", message["reasoning"])
-        if content:
-            emit("output", content)
-
-        graph, error = _try_parse(content)
-        errors = [error] if graph is None else _validate(llm, graph)
-        if not errors:
-            break
-
-        emit("error", f"validation ({attempt + 1}/{max_repairs + 1}): " + "; ".join(errors[:6]))
-        if attempt >= max_repairs:
-            break
-        emit("status", f"refining graph ({attempt + 1}/{max_repairs}) to fix {len(errors)} issue(s)")
-        messages = messages + [
-            {"role": "assistant", "content": content[:4000]},
-            {
-                "role": "user",
-                "content": REPAIR_INSTRUCTION + "\nFix these issues:\n- " + "\n- ".join(errors[:12]),
-            },
-        ]
-
-    if graph is None:
-        raise ValueError(
-            f"invalid architecture graph from the LLM: {errors[0] if errors else 'unknown'}. "
-            f"Raw response snippet: {content[:600]!r}"
-        )
-    if errors:
-        emit("error", "graph still has issues after repair: " + "; ".join(errors[:6]))
-    else:
-        emit("status", f"validated graph: {len(graph['nodes'])} nodes, {len(graph['edges'])} edges, ok")
-    return graph
+    return Session(repo_name, files, llm, on_event).ask(prompt, include_files=True)

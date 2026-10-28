@@ -15,6 +15,14 @@
       "image": "archide-kilo:latest",
       "description": "Runs the Kilo Code CLI in the sandbox; reaches the LLM through the ArchIDE gateway.",
       "limits": {}
+    },
+    {
+      "id": "codegen",
+      "name": "Code Generation Agent",
+      "kind": "builtin",
+      "image": "archide-agent:latest",
+      "description": "Implements a work package: turns specifications into a new repository (Ф8.2).",
+      "limits": {}
     }
   ]
 }
