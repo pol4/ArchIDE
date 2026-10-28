@@ -1,3 +1,5 @@
+**Русский** · [English](README.en.md)
+
 # ArchIDE
 
 **IDE для архитектурного графа, а не для кода.** Человек и агент работают с
@@ -79,6 +81,8 @@ ArchIDE проверяет её непротиворечивость, а код�
   цикл доработки; неподделываемые метки трассируемости (см. `Concept.md` §11).
 
 Подробно: [`Concept.md`](Concept.md) · Архитектура системы: [`ARCHITECTURE.md`](ARCHITECTURE.md) · Сценарии: [`SCENARIOS.md`](SCENARIOS.md) · План: [`ROADMAP.md`](ROADMAP.md).
+
+Англоязычные версии гайдов архитектора: [`ARCHITECT_GUIDE.en.md`](ARCHITECT_GUIDE.en.md) · [`ARCHITECT_GUIDE_UI.en.md`](ARCHITECT_GUIDE_UI.en.md) · [`RECONSTRUCTION_GUIDE.en.md`](RECONSTRUCTION_GUIDE.en.md).
 
 ## Скриншоты
 
@@ -172,7 +176,8 @@ bash tests/run_e2e.sh      # API + браузер; печатает E2E RESULT: 
 ## Структура репозитория
 
 ```
-README.md            стартовая страница (эта)
+README.md            стартовая страница (эта, русская)
+README.en.md         то же по-английски
 Concept.md           концепция (система субграфов: каркас, аспекты, версии, RAG, метки)
 ARCHITECTURE.md      архитектура системы целиком
 SCENARIOS.md         основные сценарии работы

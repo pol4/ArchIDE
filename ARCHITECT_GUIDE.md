@@ -1,3 +1,5 @@
+**Русский** · [English](ARCHITECT_GUIDE.en.md)
+
 # ArchIDE — руководство архитектора
 
 > **Пошаговый гайд по интерфейсу со скриншотами:** `ARCHITECT_GUIDE_UI.md`
