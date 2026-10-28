@@ -60,16 +60,16 @@ ArchIDE проверяет её непротиворечивость, а код�
   недостижимо. Вместо этого — **легко расширяемый граф** с простой логикой, а его
   непротиворечивость **проверяет и поддерживает агент**: цикл
   «наблюдение → расхождение → коррекция». Не идеальная базовая конструкция, но
-  **динамически стабилизируемая** (см. `Concept.md` §0.1).
+  **динамически стабилизируемая** (см. `docs/Concept.md` §0.1).
 - **Единый граф, а не куча документов.** В документной модели один смысл
   дублируется и расходится; в графовой — сущность существует один раз, остальное
   — ссылки.
 - **Система субграфов.** Каркас, аспекты, агрегаты, проекции, срезы, версии и
   внешние свидетельства — всё это субграфы одного графа, связанные алгеброй
-  `merge · common · minus · view · slice · agg · pin · changes` (см. `Concept.md` §2).
+  `merge · common · minus · view · slice · agg · pin · changes` (см. `docs/Concept.md` §2).
 - **Каркас (C4) + аспекты.** C4 — структурная идентичность (System→Container→
   Component→Module). Поведение, данные, интерфейсы, процессы, доступ, ИБ —
-  ортогональные **аспекты**, натянутые на тот же каркас (см. `Concept.md` §4).
+  ортогональные **аспекты**, натянутые на тот же каркас (см. `docs/Concept.md` §4).
 - **Проекции, а не артефакты.** Диаграмма/спецификация вычисляется из модели —
   поэтому не может «разойтись» с ней.
 - **Агенты работают по ограниченным срезам.** Из модели генерируется bounded-срез
@@ -78,11 +78,27 @@ ArchIDE проверяет её непротиворечивость, а код�
   с **документацией**; расхождения (отклонения) показываются явно с указанием
   источника.
 - **Строгость машинная, а не дисциплинарная.** Закрытая метамодель + валидатор +
-  цикл доработки; неподделываемые метки трассируемости (см. `Concept.md` §11).
+  цикл доработки; неподделываемые метки трассируемости (см. `docs/Concept.md` §11).
 
-Подробно: [`Concept.md`](Concept.md) · Архитектура системы: [`ARCHITECTURE.md`](ARCHITECTURE.md) · Сценарии: [`SCENARIOS.md`](SCENARIOS.md) · План: [`ROADMAP.md`](ROADMAP.md).
+Подробно: [`docs/Concept.md`](docs/Concept.md) · Архитектура системы: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · Сценарии: [`docs/SCENARIOS.md`](docs/SCENARIOS.md) · План: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-Англоязычные версии гайдов архитектора: [`ARCHITECT_GUIDE.en.md`](ARCHITECT_GUIDE.en.md) · [`ARCHITECT_GUIDE_UI.en.md`](ARCHITECT_GUIDE_UI.en.md) · [`RECONSTRUCTION_GUIDE.en.md`](RECONSTRUCTION_GUIDE.en.md).
+Англоязычные версии гайдов архитектора: [`docs/ARCHITECT_GUIDE.en.md`](docs/ARCHITECT_GUIDE.en.md) · [`docs/ARCHITECT_GUIDE_UI.en.md`](docs/ARCHITECT_GUIDE_UI.en.md) · [`docs/RECONSTRUCTION_GUIDE.en.md`](docs/RECONSTRUCTION_GUIDE.en.md).
+
+## Документация
+
+Архитектурные документы (все — в `docs/`; у гайдов есть англоязычные версии):
+
+| Документ | О чём |
+|---|---|
+| [`docs/Concept.md`](docs/Concept.md) | **концепция**: зачем ArchIDE, система субграфов, каркас и аспекты, строгость, RAG, опыт агента · [EN](docs/Concept.en.md) |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | **архитектура системы**: контейнеры и компоненты, потоки, модули PoC, текущее состояние · [EN](docs/ARCHITECTURE.en.md) |
+| [`docs/SCENARIOS.md`](docs/SCENARIOS.md) | сценарии работы и их покрытие тестами |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | дорожная карта по фазам |
+| [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | план реализации: задачи и статусы |
+| [`docs/ARCHITECT_GUIDE.md`](docs/ARCHITECT_GUIDE.md) | гайд архитектора: два сценария (репозиторий / с нуля) и API · [EN](docs/ARCHITECT_GUIDE.en.md) |
+| [`docs/ARCHITECT_GUIDE_UI.md`](docs/ARCHITECT_GUIDE_UI.md) | то же только через UI, со скриншотами · [EN](docs/ARCHITECT_GUIDE_UI.en.md) |
+| [`docs/RECONSTRUCTION_GUIDE.md`](docs/RECONSTRUCTION_GUIDE.md) | разбор полного прогона реального проекта по всем аспектам · [EN](docs/RECONSTRUCTION_GUIDE.en.md) |
+| [`docs/UI_REDESIGN.md`](docs/UI_REDESIGN.md) | предложение по редизайну интерфейса |
 
 ## Скриншоты
 
@@ -90,7 +106,7 @@ ArchIDE проверяет её непротиворечивость, а код�
 (C4 + по аспекту), сворачиваемое **дерево сущностей C4**, перетаскивание элементов
 с запоминанием раскладки, чат агента в нижней панели. Все кадры — актуальные
 (`docs/screens/`), сняты на живых прогонах; пошаговый разбор — в
-[`ARCHITECT_GUIDE_UI.md`](ARCHITECT_GUIDE_UI.md).
+[`docs/ARCHITECT_GUIDE_UI.md`](docs/ARCHITECT_GUIDE_UI.md).
 
 **C4-схема** — элементы по нотации (контейнеры с шапкой, внешние системы штриховой
 рамкой), связи от границы к границе со стрелкой и подписью типа:
@@ -154,7 +170,7 @@ docker build -t archide-kilo:latest agents/kilo/   # опционально: Kil
 
 ## Тесты (e2e)
 
-Сквозные тесты сценариев (`SCENARIOS.md`) в двух режимах — **API** и **браузер**
+Сквозные тесты сценариев (`docs/SCENARIOS.md`) в двух режимах — **API** и **браузер**
 (headless Chrome, реальные действия пользователя), детерминированно (mock/local +
 стаб-docker, без реального Docker и LLM):
 
@@ -171,24 +187,25 @@ bash tests/run_e2e.sh      # API + браузер; печатает E2E RESULT: 
 документации (с валидацией) → `Ф4` редактирование модели и автоматическая
 непротиворечивость → `Ф5` генерация и валидация кода по модели.
 
-Полностью: [`ROADMAP.md`](ROADMAP.md).
+Полностью: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Структура репозитория
 
 ```
-README.md            стартовая страница (эта, русская)
-README.en.md         то же по-английски
-Concept.md           концепция (система субграфов: каркас, аспекты, версии, RAG, метки)
-ARCHITECTURE.md      архитектура системы целиком
-SCENARIOS.md         основные сценарии работы
-ROADMAP.md           дорожная карта
-IMPLEMENTATION_PLAN.md  план реализации по фазам (задачи и статусы)
-ARCHITECT_GUIDE.md   гайд архитектора: два сценария (существующий репозиторий / с нуля), API
-RECONSTRUCTION_GUIDE.md  полная реконструкция реального проекта по всем аспектам (разбор прогона MLScan)
-ARCHITECT_GUIDE_UI.md    сценарии в UI: реконструкция, синтез по описанию в чате, аспекты, приёмка
+README.md            стартовая страница (эта, русская); README.en.md — то же по-английски
 AGENTS.md            обязательные правила для агента (e2e, тесты, согласование)
+docs/                архитектурные документы (см. «Документация» выше)
+  Concept.md         концепция (система субграфов: каркас, аспекты, версии, RAG, метки) + .en.md
+  ARCHITECTURE.md    архитектура системы целиком + .en.md
+  SCENARIOS.md       основные сценарии работы
+  ROADMAP.md         дорожная карта
+  IMPLEMENTATION_PLAN.md  план реализации по фазам (задачи и статусы)
+  ARCHITECT_GUIDE.md      гайд архитектора (репозиторий / с нуля, API) + .en.md
+  ARCHITECT_GUIDE_UI.md   сценарии в UI со скриншотами + .en.md
+  RECONSTRUCTION_GUIDE.md разбор полного прогона реального проекта + .en.md
+  UI_REDESIGN.md     предложение по редизайну интерфейса
+  screens/           скриншоты UI (гайды архитектора)
 tests/               сквозные тесты (API + браузер) + оркестратор run_e2e.sh
-docs/screens/        скриншоты UI (гайды архитектора)
 archide-poc/         рабочий PoC (сервер, агенты, UI)
   server.py          stdlib HTTP: UI + API + sandbox + LLM-шлюз
   backend/           модель/валидация/runner/merge/gateway/…

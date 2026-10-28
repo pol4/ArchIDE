@@ -69,14 +69,14 @@ Without Docker or an LLM you can still exercise the whole pipeline:
 ## UI design
 
 The interface is designed graph-first (aspects and actions open from the graph element
-itself): see [`../UI_REDESIGN.md`](../UI_REDESIGN.md).
+itself): see [`../UI_REDESIGN.md`](../docs/UI_REDESIGN.md).
 
 ## Architect workflow
 
 Two end-to-end workflows (study an existing repository and hand changes to a coding agent;
 design from scratch and accept generated code) are described step by step in
-[`../ARCHITECT_GUIDE.md`](../ARCHITECT_GUIDE.md) (CLI + API) and
-[`../ARCHITECT_GUIDE_UI.md`](../ARCHITECT_GUIDE_UI.md) (UI only, with screenshots in
+[`../ARCHITECT_GUIDE.md`](../docs/ARCHITECT_GUIDE.md) (CLI + API) and
+[`../ARCHITECT_GUIDE_UI.md`](../docs/ARCHITECT_GUIDE_UI.md) (UI only, with screenshots in
 [`../docs/screens`](../docs/screens)).
 
 ## LLM gateway

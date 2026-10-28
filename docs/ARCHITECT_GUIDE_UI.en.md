@@ -28,7 +28,7 @@ cd archide-poc && python3 server.py      # UI и API: http://127.0.0.1:8200
 Open `http://127.0.0.1:8200` — you will see **only the graph**: panels are hidden, with a
 narrow events strip at the bottom.
 
-![Overview](docs/screens/01-overview.png)
+![Overview](screens/01-overview.png)
 
 **Top bar:** `☰` — show/hide panels, `◐` — theme (dark/light), `⌘K` — command palette,
 `🤖 Agent` — chat with the agent, `⚙ Setup` — setup wizard, `📊 Report` — report.
@@ -60,7 +60,7 @@ field → **Load** (panels: `☰`).
    space"; the log shows `session context trimmed: X → Y`. **There is no longer a
    reconstruction launch here** — the wizard only configures.
 
-![Setup wizard](docs/screens/08-setup.png)
+![Setup wizard](screens/08-setup.png)
 
 2. Launch it from the bottom **`Projects`** panel (or with the `reconstruct <репозиторий>`
    command in chat): enter the repository address/URL and click **Reconstruct graph**. The
@@ -68,7 +68,7 @@ field → **Load** (panels: `☰`).
    aspect extraction, then **sequential aspect passes** (`aspect `data`: +N nodes…`), and a
    reconciliation report.
 
-![Reconstruction](docs/screens/13-reconstruct.png)
+![Reconstruction](screens/13-reconstruct.png)
 
 > The screenshot uses the `mock` profile (a deterministic graph without an LLM) — the
 > interface and event flow are the same in `live` mode.
@@ -124,33 +124,33 @@ Select an element (in the tree on the left or by clicking on the canvas), then s
 sub-tabs: `Data` shows that element's data, `States` — its states, `Interfaces` — its
 interfaces. Frame: the C4 tree and an aspect sub-tab.
 
-![C4 tree](docs/screens/19-tree.png)
+![C4 tree](screens/19-tree.png)
 
-![Aspect sub-tab](docs/screens/20-views.png)
+![Aspect sub-tab](screens/20-views.png)
 
-![Automatic layout](docs/screens/21-layout.png)
+![Automatic layout](screens/21-layout.png)
 
 **Click any element** — the **inspector** opens on the right: properties (id, parent,
 evidence, description), **aspect chips** in which the element participates (with counts),
 and actions.
 
-![Element inspector](docs/screens/02-inspector.png)
+![Element inspector](screens/02-inspector.png)
 
 **Clicking an aspect chip** switches the whole canvas into **that aspect's notation** (the
 aspect lens): states, BPMN, ER, sequence, C4, deployment tree, tables. At the top there is a
 lens bar: aspect, element, view selector, and **"← to C4"**.
 
-![Aspect lens: states](docs/screens/03-lens-state.png)
+![Aspect lens: states](screens/03-lens-state.png)
 
-![Aspect lens: the same aspect as a graph](docs/screens/04-lens-graph.png)
+![Aspect lens: the same aspect as a graph](screens/04-lens-graph.png)
 
 In addition: **double-click** a node — go deeper (next level); the **C4 level** selector
 shows a whole level; **node search** finds an element, enables the right aspect, and
 selects it.
 
-![Whole level](docs/screens/10-level.png)
+![Whole level](screens/10-level.png)
 
-![Node search](docs/screens/11-search.png)
+![Node search](screens/11-search.png)
 
 ### A3. Changing the architecture
 
@@ -163,7 +163,7 @@ To create an "unrelated" element — **click an empty spot on the canvas** (the 
 popover). Bulk operations — from the `⌘K` **palette**: *Impact*, *Review*, *Reconcile
 (apply fixes)*, *Validate*, *Metrics*, *Coverage*.
 
-![Command palette](docs/screens/05-palette.png)
+![Command palette](screens/05-palette.png)
 
 ### A4. Validation and metrics
 
@@ -171,7 +171,7 @@ popover). Bulk operations — from the `⌘K` **palette**: *Impact*, *Review*, *
 per-aspect metrics (elements, declared-type coverage, orphans, elements without evidence),
 requirements coverage, and — if a result model is set — an **acceptance verdict**.
 
-![Report](docs/screens/07-report.png)
+![Report](screens/07-report.png)
 
 ### A5. Kit for a coding agent
 
@@ -183,7 +183,7 @@ archive** for the agent: `manifest.json` (model, hash, contents, marker verifica
 `workpackage.json`, `artifacts/`, `markers.json`, and a `README.md` with instructions
 (including the requirement to insert the markers into the code).
 
-![Operations panels: work package](docs/screens/09-panels.png)
+![Operations panels: work package](screens/09-panels.png)
 
 ### A6. Handing off to a code-generation agent
 
@@ -193,7 +193,7 @@ specifications, and markers, and returns a **new repository** (files in
 `data/generated/<имя>`, changes are committed). The window shows the path, the file list,
 and the commit.
 
-![Code generation](docs/screens/14-codegen.png)
+![Code generation](screens/14-codegen.png)
 
 ### A7. Accepting the result against the graph
 
@@ -203,7 +203,7 @@ and the commit.
    (target/result/matched/missing/extra/coverage), and a breakdown by aspect; the same
    verdict appears in `📊 Report`.
 
-![Acceptance against the graph](docs/screens/15-acceptance-diff.png)
+![Acceptance against the graph](screens/15-acceptance-diff.png)
 
 ---
 
@@ -218,7 +218,7 @@ and the commit.
    canvas (`＋`, in the inspector — *Create inside* / *Link*), or `Import` an existing
    model file.
 
-![Model from a template](docs/screens/17-template.png)
+![Model from a template](screens/17-template.png)
 2. **Verify**: `📊 Report` (validation, per-aspect metrics, requirements coverage).
 3. **Assemble artifacts and tasks**: panel **9** (or the palette) — *Work package*,
    *Markers*, *Coverage matrix*, *Generate artifacts & package*.
@@ -237,7 +237,7 @@ the architect writes directly in chat.
    `design …` command (or `синтез …`). The agent shows a confirmation and the description
    length.
 
-![Statement in chat](docs/screens/22-synthesis-chat.png)
+![Statement in chat](screens/22-synthesis-chat.png)
 
 2. **Confirm** ("yes") — **synthesis** starts: the description (and any attached documents,
    if they have been uploaded) becomes the material for the design pass. The log shows
@@ -245,18 +245,18 @@ the architect writes directly in chat.
 3. **Get the graph.** When it finishes, the model is loaded into the canvas; from there you
    work with it as usual — aspect sub-tabs, the C4 tree, validation.
 
-![Synthesized graph](docs/screens/23-synthesis-graph.png)
+![Synthesized graph](screens/23-synthesis-graph.png)
 
 4. **Export the architecture documentation** — the **Documentation** button in the
    **Projects** tab (or the `⌘K` palette): Markdown with an overview, C4 decomposition, a
    section per aspect, relationships, requirements, and traceability (evidence). The
    document is generated **from the model**, so it does not drift from it.
 
-![Documentation](docs/screens/24-documentation.png)
+![Documentation](screens/24-documentation.png)
 
 Aspect sub-tabs show their part of the same model (data as cylinders):
 
-![Aspect of the synthesized model](docs/screens/25-synthesis-aspect.png)
+![Aspect of the synthesized model](screens/25-synthesis-aspect.png)
 
 **A real run** (live `Qwen3.8-27B` model, `runner=docker`): the description paragraph above
 produced **112 nodes / 90 edges** in ~20 minutes, with contributions from **all seven
@@ -297,7 +297,7 @@ but also run **commands**: `reconstruct <репозиторий>`, `add aspect <
 operations) is applied with the **Apply as transaction** button — it goes through the same
 gated edit pipeline.
 
-![Agent and context](docs/screens/06-agent-context.png)
+![Agent and context](screens/06-agent-context.png)
 
 ---
 
@@ -305,7 +305,7 @@ gated edit pipeline.
 
 `◐` toggles between the dark and light theme; the choice is saved.
 
-![Light theme](docs/screens/12-theme-light.png)
+![Light theme](screens/12-theme-light.png)
 
 ---
 
@@ -329,9 +329,9 @@ the graph, chat history, and view state), and a **＋ Project** button. At the b
   analysis of the model: issues and proposed fixes), **Propose fixes**, and **Apply fixes**
   (applied as a transaction with re-validation), plus validation history.
 
-![Projects panel](docs/screens/16-projects.png)
+![Projects panel](screens/16-projects.png)
 
-![Validation panel](docs/screens/18-validation.png)
+![Validation panel](screens/18-validation.png)
 
 ## Designing from specifications only
 

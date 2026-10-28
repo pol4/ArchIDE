@@ -1,4 +1,4 @@
-// Slow screenshots for ARCHITECT_GUIDE_UI.md: live code generation and the
+// Slow screenshots for docs/ARCHITECT_GUIDE_UI.md: live code generation and the
 // acceptance diff (they need a real LLM call, so they live apart).
 import puppeteer from 'puppeteer-core';
 import fs from 'fs';

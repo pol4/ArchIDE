@@ -64,18 +64,18 @@ validation, debugging and tooling.
   unreachable. Instead: an **easily extensible graph** with simple rules, whose
   consistency is **checked and maintained by the agent** in an
   "observe → divergence → correct" loop. Not a perfect base construct, but a
-  **dynamically stabilised** one (see `Concept.md` §0.1).
+  **dynamically stabilised** one (see `docs/Concept.md` §0.1).
 - **One graph, not a pile of documents.** In a document-centric model the same
   meaning is duplicated and drifts apart; in a graph model the entity exists once
   and everything else is a reference.
 - **A system of subgraphs.** Spine, aspects, aggregates, projections, slices,
   versions and external evidence are all subgraphs of one graph, related by the
   algebra `merge · common · minus · view · slice · agg · pin · changes`
-  (see `Concept.md` §2).
+  (see `docs/Concept.md` §2).
 - **Spine (C4) + aspects.** C4 is the structural identity
   (System→Container→Component→Module). Behaviour, data, interfaces, processes,
   access and security are orthogonal **aspects** stretched over the same spine
-  (see `Concept.md` §4).
+  (see `docs/Concept.md` §4).
 - **Projections, not artefacts.** A diagram or a specification is computed from the
   model — so it cannot "drift away" from it.
 - **Agents work over bounded slices.** A bounded context slice is generated from the
@@ -84,14 +84,31 @@ validation, debugging and tooling.
   the **documentation**; the divergences (deviations) are shown explicitly together
   with their source.
 - **Machine-enforced rigour, not discipline.** A closed metamodel + a validator + a
-  repair loop; unforgeable traceability markers (see `Concept.md` §11).
+  repair loop; unforgeable traceability markers (see `docs/Concept.md` §11).
 
-In depth: [`Concept.md`](Concept.md) · System architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md) · Scenarios: [`SCENARIOS.md`](SCENARIOS.md) · Roadmap: [`ROADMAP.md`](ROADMAP.md).
+In depth: [`docs/Concept.md`](docs/Concept.md) · System architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · Scenarios: [`docs/SCENARIOS.md`](docs/SCENARIOS.md) · Roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 An English version of the architect guides:
-[`ARCHITECT_GUIDE.en.md`](ARCHITECT_GUIDE.en.md) ·
-[`ARCHITECT_GUIDE_UI.en.md`](ARCHITECT_GUIDE_UI.en.md) ·
-[`RECONSTRUCTION_GUIDE.en.md`](RECONSTRUCTION_GUIDE.en.md).
+[`docs/ARCHITECT_GUIDE.en.md`](docs/ARCHITECT_GUIDE.en.md) ·
+[`docs/ARCHITECT_GUIDE_UI.en.md`](docs/ARCHITECT_GUIDE_UI.en.md) ·
+[`docs/RECONSTRUCTION_GUIDE.en.md`](docs/RECONSTRUCTION_GUIDE.en.md).
+
+## Documentation
+
+The architecture documents (all under `docs/`; the guides also have Russian
+originals):
+
+| Document | What it covers |
+|---|---|
+| [`docs/Concept.md`](docs/Concept.md) | **concept**: why ArchIDE exists, the system of subgraphs, spine and aspects, rigour, RAG, agent experience · [RU](docs/Concept.md) |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | **system architecture**: containers and components, flows, PoC modules, current state |
+| [`docs/SCENARIOS.md`](docs/SCENARIOS.md) | working scenarios and their test coverage |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | roadmap by phase |
+| [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | implementation plan: tasks and statuses |
+| [`docs/ARCHITECT_GUIDE.en.md`](docs/ARCHITECT_GUIDE.en.md) | architect guide: two scenarios (repository / from scratch) and the API |
+| [`docs/ARCHITECT_GUIDE_UI.en.md`](docs/ARCHITECT_GUIDE_UI.en.md) | the same, UI-only, with screenshots |
+| [`docs/RECONSTRUCTION_GUIDE.en.md`](docs/RECONSTRUCTION_GUIDE.en.md) | a full reconstruction run of a real project across all aspects |
+| [`docs/UI_REDESIGN.md`](docs/UI_REDESIGN.md) | the interface redesign proposal (Russian) |
 
 ## Screenshots
 
@@ -99,7 +116,7 @@ A graph-first interface: a canvas in C4 notation with **view sub-tabs** (C4 + on
 per aspect), a collapsible **C4 entity tree**, drag-and-drop placement with a
 saved layout, and the agent chat in the bottom panel. All the images are current
 (`docs/screens/`) and were taken on real runs; the step-by-step walkthrough is in
-[`ARCHITECT_GUIDE_UI.en.md`](ARCHITECT_GUIDE_UI.en.md).
+[`docs/ARCHITECT_GUIDE_UI.en.md`](docs/ARCHITECT_GUIDE_UI.en.md).
 
 **C4 view** — elements follow the notation (containers with a header band, external
 systems with a dashed border), edges run border to border with an arrow and a type
@@ -167,7 +184,7 @@ UI demo without a server: open `archide-poc/frontend/index.html?demo=1`
 
 ## Tests (e2e)
 
-End-to-end tests of the scenarios (`SCENARIOS.md`) in two modes — **API** and
+End-to-end tests of the scenarios (`docs/SCENARIOS.md`) in two modes — **API** and
 **browser** (headless Chrome, real user actions) — deterministic (mock/local +
 stub docker, no real Docker or LLM):
 
@@ -184,24 +201,25 @@ universal architecture model → `Ф3` full reconstruction from code and
 documentation (with validation) → `Ф4` model editing and automatic consistency →
 `Ф5` code generation and validation from the model.
 
-In full: [`ROADMAP.md`](ROADMAP.md).
+In full: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Repository layout
 
 ```
-README.md            start page (this file; Russian in README.md)
-README.en.md         this English version
-Concept.md           the concept (a system of subgraphs: spine, aspects, versions, RAG, markers)
-ARCHITECTURE.md      the architecture of the whole system
-SCENARIOS.md         the main working scenarios
-ROADMAP.md           roadmap
-IMPLEMENTATION_PLAN.md  phased implementation plan (tasks and statuses)
-ARCHITECT_GUIDE.md   architect guide: two scenarios (existing repository / from scratch), API
-ARCHITECT_GUIDE_UI.md    the same, UI-only, with screenshots
-RECONSTRUCTION_GUIDE.md  a full reconstruction of a real project across all aspects (MLScan run)
+README.md            start page (Russian) · README.en.md — this English version
 AGENTS.md            mandatory rules for the agent (e2e, tests, agreement)
+docs/                the architecture documents (see "Documentation" above)
+  Concept.md         the concept (a system of subgraphs: spine, aspects, versions, RAG, markers) + .en.md
+  ARCHITECTURE.md    the architecture of the whole system + .en.md
+  SCENARIOS.md       the main working scenarios
+  ROADMAP.md         roadmap
+  IMPLEMENTATION_PLAN.md  phased implementation plan (tasks and statuses)
+  ARCHITECT_GUIDE.md      architect guide (repository / from scratch, API) + .en.md
+  ARCHITECT_GUIDE_UI.md   UI walkthrough with screenshots + .en.md
+  RECONSTRUCTION_GUIDE.md walkthrough of a full real-project run + .en.md
+  UI_REDESIGN.md     the interface redesign proposal
+  screens/           UI screenshots used by the architect guides
 tests/               end-to-end tests (API + browser) + the run_e2e.sh orchestrator
-docs/screens/        UI screenshots used by the architect guides
 archide-poc/         the working PoC (server, agents, UI)
   server.py          stdlib HTTP: UI + API + sandbox + LLM gateway
   backend/           model/validation/runner/merge/gateway/…

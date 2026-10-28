@@ -1,4 +1,4 @@
-// Captures the screenshots used by ARCHITECT_GUIDE_UI.md (graph-first shell).
+// Captures the screenshots used by docs/ARCHITECT_GUIDE_UI.md (graph-first shell).
 //
 //   cd tests/browser && ARCHIDE_URL=http://127.0.0.1:8200 node capture_screens.mjs
 //

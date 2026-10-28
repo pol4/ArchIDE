@@ -6,7 +6,7 @@ through the same LLM configuration (and, for sandboxed runs, the same gateway
 lease) as every other agent, so no new trust boundary is introduced.
 
 The delivered repository is what the architect then validates against the model
-(see `graphdiff`), closing the loop of the two scenarios in ARCHITECT_GUIDE.md.
+(see `graphdiff`), closing the loop of the two scenarios in docs/ARCHITECT_GUIDE.md.
 """
 from __future__ import annotations
 

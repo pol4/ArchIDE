@@ -1,3 +1,5 @@
+**Русский** · [English](ARCHITECTURE.en.md)
+
 # ArchIDE — архитектура системы
 
 Как устроена система целиком. Концепция — [`Concept.md`](Concept.md), план —
@@ -212,6 +214,14 @@ graph TD
 (проход 1: код; проход 2: документация) → validate (хост+агент, repair) → merge
 (отклонения) → **commit** в модель.
 
+**6.1a Синтез архитектуры по описанию (реализовано):** постановка в чате
+(`design <описание>`, при желании — приложенные документы) → материал синтеза
+(`data/scratch/design/<имя>`: `00-description.md` + документы) → **проектировочный
+проход** (код не нужен) → те же валидация/ремонт и аспектные проходы, что и при
+реконструкции → модель. Далее: **архитектурная документация из модели**, пакет
+передачи кодогенерирующему агенту, корректировка визуально или запросами к агенту.
+Синтез — не отдельный контур, а другой **вход** в ту же модель и тот же gate.
+
 **6.2 Ручное редактирование (человек):** UI-правка → **транзакция** → incremental
 validate → impact → commit или блок с причиной (referential actions); далее
 **агент-ревьюер** проверяет граф и **предлагает исправления** (диф на подтверждение).
@@ -349,16 +359,39 @@ graph LR
 
 ## 13. Текущее состояние vs целевое
 
-| Компонент | PoC | Целевое |
+Реализовано (фазы `docs/IMPLEMENTATION_PLAN.md`; тесты — API + браузер):
+
+| Компонент | PoC (сейчас) | Целевое |
 |---|---|---|
-| Model Store | in-memory граф + JSON | граф-БД + версии (CAS) |
-| Validator | жёсткие инварианты | + referential actions, кросс-аспект, impact |
-| Projection | SVG по одному уровню C4 | + все аспекты, экспорт спецификаций |
-| Sandbox | Docker без mount, volume | + лимиты, изоляция, lease |
-| Gateway | токен + подстановка ключа | + квоты, аудит, стриминг |
-| RAG | — | ingestion, гибридный retrieval, требования |
-| Artifact/CI | — | генераторы, метки, conformance gate |
+| Model Store | граф + JSON, **раскладка канваса отдельно** (`backend/layouts.py`) | граф-БД + версии (CAS) |
+| Validator | метамодель, якоря, кросс-аспектные связи, ограничения, **цикл ремонта** | + referential actions, impact |
+| Projection | **подзакладки аспектов** (C4 / ER / state / BPMN / …) с нотацией C4, линзы, срезы, уровни | + экспорт спецификаций |
+| Reconciler | отчёт сверки (элементы без связей/evidence), аспектные проходы | + автоматическая коррекция |
+| Sandbox | Docker без mount, общий том, **одна сессия на прогон** | + лимиты, lease |
+| Gateway | токен + подстановка ключа, аудит в JSONL | + квоты, стриминг |
+| RAG | загрузка md/csv, маркированные чанки, поиск, **заземлённый ответ с цитатами** | + гибридный retrieval |
+| Artifact / приёмка | артефакты, work package, подписанные метки, **граф-дифф и вердикт приёмки**, пакет передачи (handoff), адаптер внешнего CLI-агента | + conformance gate в CI |
+| Синтез и шаблоны | **проектирование по ТЗ**, **синтез по описанию в чате**, стартовые шаблоны, **архитектурная документация из модели** | + шаблоны предметных областей |
+| Проекты | проекты как первоклассное понятие, рабочая область, история прогонов и чата | + федерация |
+| Опыт агента | **диалоги с провенансом**, **обратная связь с атрибуцией** | + профиль, рефлексия, toxicity filter |
 | Versioning | — | коммиты, ветки, time-travel |
+
+### 13.1. Карта модулей PoC
+
+| Контейнер (диаграмма выше) | Модули `archide-poc/` |
+|---|---|
+| API / Orchestrator | `server.py` (stdlib HTTP: UI, API, песочница, шлюз) |
+| Model Store | `backend/model_store.py`, `backend/metamodel.py`, `backend/graph_schema.py` |
+| Validator / Constraint Engine | `backend/graph_schema.py`, `backend/constraints.py`, `backend/edit.py` |
+| Reconciler | `backend/merge.py`, `backend/extract.py`, `backend/aspect_pass.py`, `backend/evaluate.py` |
+| Projection Engine | `frontend/app.js` (SVG-рендер, подзакладки, линзы), `backend/analysis.py` |
+| Agent Sandbox Runtime | `agent/`, `agents/kilo/`, `backend/sandbox.py`, `backend/runtime.py` |
+| LLM Gateway | `backend/gateway.py` |
+| RAG / Index, Document Ingestion, Personal Document Store | `backend/docs.py`, `backend/rag.py`, `backend/markers.py` |
+| Artifact / приёмка | `backend/generate.py`, `backend/handoff.py`, `backend/codegen.py`, `backend/graphdiff.py` |
+| Синтез, проектирование, шаблоны, документация | `backend/design.py`, `backend/templates.py`, `backend/archdoc.py`, `backend/prompt.py` |
+| Проекты, опыт агента | `backend/projects.py`, `backend/dialogue.py`, `backend/feedback.py` |
+| Запуск прогонов | `backend/runner.py`, `backend/runs.py`, `backend/context.py`, `backend/compress.py` |
 
 ## 14. Соответствие концепции
 
@@ -368,7 +401,8 @@ graph LR
 | §0.1 динамическая устойчивость | Reconciler (наблюдение → расхождение → коррекция) |
 | §18 опыт/самоадаптация агента | Agent Memory & Adaptation (диалоги, профиль, рефлексия, toxicity filter) |
 | §3 каркас/уровни, §5 агрегация | Projection Engine, Layout |
-| §4 аспекты, §15 аспектный UI | Web UI (вкладки), Projection Engine |
+| §4 аспекты, §15 аспектный UI | Web UI (**подзакладки аспектов**, дерево C4, раскладка канваса), Projection Engine |
+| §9.1 проектирование по ТЗ, §9.2 синтез по описанию | Prompt/design (`backend/design.py`), Runner, ArchDoc |
 | §6 срезы | Projection Engine (Slice builder), API |
 | §7 требования | Registry, Document Ingestion, RAG |
 | §8 строгость/инварианты | Validator / Constraint Engine |
@@ -376,7 +410,8 @@ graph LR
 | §10 редактирование/impact, диалог с агентом | Validator (transactions, impact), Agent Editor (chat), API |
 | §11 генерация/метки | Artifact/CI (issuer/verifier) |
 | §12 версионность/time-travel | Model Store (Version Store), Web UI (timeline) |
-| §13 RAG, персональные документы, метки чанков | RAG/Index, Document Ingestion, Personal Document Store |
+| §13 RAG, персональные документы, метки чанков, заземлённый ответ | RAG/Index, Document Ingestion, Personal Document Store |
+| §13.7 заземлённый ответ с цитатами | `backend/rag.py` (генерация + поклеймовая атрибуция) |
 | §14 федерация | Registry (GCR), Validator, RAG |
 | §15 поверхности/окна | Web UI |
 | §16 техконтур | все контейнеры |
