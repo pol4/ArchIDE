@@ -1,0 +1,89 @@
+# ArchIDE — defaults. The same image runs on a workstation (deploy/Dockerfile)
+# and in Kubernetes; only these values change per environment.
+#
+# Platform-specific overrides live in values-farm.yaml.
+
+image:
+  repository: archide          # e.g. 192.168.20.254:30003/dev/archide
+  tag: latest
+  # pin by digest in production (the platform's policy rewrites tags to digests):
+  # digest: sha256:...
+  digest: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+replicaCount: 1
+
+serviceAccount:
+  create: false
+
+# Everything the server needs to start. `runner=local` means the agent runs in
+# process — a single pod has no Docker daemon to talk to.
+config:
+  runner: local
+  maxRepairs: "3"
+  llm:
+    # OpenAI-compatible endpoint reachable from the pod
+    baseUrl: "http://localhost:11434/v1"
+    model: "qwen2.5-coder:7b"
+    # "live" calls the endpoint, "mock" builds a deterministic graph without an LLM
+    mode: "live"
+    # passed into the pod as a Secret (never as a plain env value in git)
+    apiKey: ""
+
+# non-secret environment variables, added verbatim to the container
+extraEnv: {}
+#  ARCHIDE_PUBLIC_URL: http://archide.example
+
+# persistent state: models, runs, projects, layouts, user documents
+persistence:
+  enabled: true
+  size: 5Gi
+  storageClass: ""            # "" → the cluster default StorageClass
+  accessMode: ReadWriteOnce
+  existingClaim: ""
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: false
+  className: nginx
+  host: archide.local
+  annotations: {}
+  tls: []
+  #  - secretName: archide-tls
+  #    hosts: [archide.local]
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 2Gi
+
+# The cluster enforces the restricted Pod Security Standard; these settings are
+# what makes the pod admissible. Keep them unless you know what you are changing.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+probes:
+  path: /api/agents
+  initialDelaySeconds: 5
+  periodSeconds: 15
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

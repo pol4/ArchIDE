@@ -1,0 +1,35 @@
+# ArchIDE on a local workstation: one container, everything inside.
+#
+#   docker compose -f deploy/docker-compose.yml up --build
+#   open http://127.0.0.1:8000
+#
+# The LLM is expected on the host (Ollama on :11434 by default). Override with
+# ARCHIDE_LLM_BASE_URL, or point it at any OpenAI-compatible endpoint.
+services:
+  archide:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: archide:latest
+    container_name: archide
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      ARCHIDE_LLM_BASE_URL: "${ARCHIDE_LLM_BASE_URL:-http://host.docker.internal:11434/v1}"
+      ARCHIDE_LLM_MODEL: "${ARCHIDE_LLM_MODEL:-qwen2.5-coder:7b}"
+      ARCHIDE_LLM_API_KEY: "${ARCHIDE_LLM_API_KEY:-}"
+      # "mock" runs the whole pipeline without any LLM — good for a first look
+      ARCHIDE_LLM_MODE: "${ARCHIDE_LLM_MODE:-live}"
+      # "local": the agent runs inside this container (no Docker socket needed).
+      # "docker": the agent runs as a sandbox container (needs the Docker socket).
+      ARCHIDE_RUNNER: "${ARCHIDE_RUNNER:-local}"
+    volumes:
+      - archide-data:/data
+      # only for ARCHIDE_RUNNER=docker: the agent sandbox has to be started
+      # - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  archide-data:

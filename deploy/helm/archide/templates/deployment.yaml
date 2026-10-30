@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "archide.fullname" . }}
+  labels:
+    {{- include "archide.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  # the state lives on a ReadWriteOnce claim, so the old pod must go first
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "archide.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "archide.labels" . | nindent 8 }}
+    spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "archide.fullname" . }}
+      {{- end }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: archide
+          image: {{ include "archide.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: ARCHIDE_DATA
+              value: /data
+            - name: ARCHIDE_HOST
+              value: "0.0.0.0"
+            - name: ARCHIDE_PORT
+              value: "8000"
+            - name: ARCHIDE_RUNNER
+              value: {{ .Values.config.runner | quote }}
+            - name: ARCHIDE_MAX_REPAIRS
+              value: {{ .Values.config.maxRepairs | quote }}
+            - name: ARCHIDE_LLM_BASE_URL
+              value: {{ .Values.config.llm.baseUrl | quote }}
+            - name: ARCHIDE_LLM_MODEL
+              value: {{ .Values.config.llm.model | quote }}
+            - name: ARCHIDE_LLM_MODE
+              value: {{ .Values.config.llm.mode | quote }}
+            {{- if or .Values.config.llm.apiKey .Values.config.llm.existingSecret }}
+            - name: ARCHIDE_LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "archide.secretName" . }}
+                  key: ARCHIDE_LLM_API_KEY
+                  optional: true
+            {{- end }}
+            {{- range $key, $value := .Values.extraEnv }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.path }}
+              port: http
+            initialDelaySeconds: {{ add 10 .Values.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            # the root filesystem is read-only; these two paths must stay writable
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "archide.pvcName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

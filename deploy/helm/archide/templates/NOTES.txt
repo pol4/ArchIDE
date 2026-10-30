@@ -1,0 +1,15 @@
+ArchIDE is deployed in namespace {{ .Release.Namespace }}.
+
+  {{- if .Values.ingress.enabled }}
+  Open:  http://{{ .Values.ingress.host }}/
+  {{- else }}
+  Reach it with:
+    kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "archide.fullname" . }} 8000:{{ .Values.service.port }}
+  then open http://127.0.0.1:8000/
+  {{- end }}
+
+  Pod status:  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/name={{ include "archide.name" . }}
+  Logs:        kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "archide.fullname" . }} -f
+
+The agent runs in process (`runner=local`) — a single pod has no Docker daemon.
+Models, runs, projects and user documents live on the {{ include "archide.pvcName" . }} claim.

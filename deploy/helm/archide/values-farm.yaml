@@ -1,0 +1,51 @@
+# Values for the `farm` cluster (192.168.20.254).
+#
+# The cluster is GitOps-managed (ArgoCD) for the `dev-*` namespaces; ArchIDE is
+# deployed into its OWN namespace so it neither conflicts with nor is pruned by
+# that application. The chart deliberately does not carry the ArgoCD instance
+# label, so the platform's sync does not adopt these resources.
+#
+# Images: the cluster verifies that images under `192.168.20.254:30003/dev/*` are
+# cosign-signed, so they must be pushed through the platform's signing flow.
+# See deploy/README.md.
+
+image:
+  repository: 192.168.20.254:30003/dev/archide
+  tag: latest            # replace with the digest produced by the build
+  pullPolicy: IfNotPresent
+  pullSecrets:
+    - name: archide-registry
+
+config:
+  runner: local
+  llm:
+    # the workstation LLM on the LAN; reachable from the cluster
+    baseUrl: "http://192.168.20.20:8000/v1"
+    model: "Qwen3.8-27B-UD-Q5_K_XL"
+    mode: "live"
+
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClass: ceph-rwo
+  accessMode: ReadWriteOnce
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: true
+  className: nginx
+  host: archide.aisandbox.farm.local
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "32m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "1800"
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    memory: 3Gi

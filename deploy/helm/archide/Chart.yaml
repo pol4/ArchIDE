@@ -1,0 +1,7 @@
+apiVersion: v2
+name: archide
+description: ArchIDE — an IDE for the architecture graph (server, UI and the built-in agent in one image)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [architecture, c4, ide, agent]
