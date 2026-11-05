@@ -173,7 +173,44 @@ kubectl -n argocd get application | grep archide
 
 ---
 
-## 6. Что нужно решить до старта
+## 6. Решения (согласовано 05.11)
+
+1. **Идентичность тенанта:** `<project>` = `archide`, приложение `archide`, хост
+   **`archide.platform.local`**, namespace `t-archide-app`.
+2. **LLM для кластера:** эндпоинт рабочей станции
+   `http://192.168.20.20:8000/v1` (модель `Qwen3.8-27B-UD-Q5_K_XL`), режим `live`;
+   для него добавлено правило egress `allow-llm-egress`. Если эндпоинт окажется
+   недоступен из кластера — переключение на `mock` одной строкой в манифесте.
+3. **Данные:** остаются на **PVC** (`ceph-rwo`, 10Gi), не DaaS PostgreSQL.
+   Обоснование: ArchIDE хранит состояние файлами (модели, прогоны, раскладки,
+   диалоги, обратная связь) и работает в один реплика-под; переезд на Postgres —
+   переписывание слоя хранения без выигрыша на таком профиле (низкий QPS, мелкие
+   файлы), а квота тенанта разрешает до 10 PVC. DaaS PG остаётся опцией на случай
+   нескольких реплик или внешних потребителей данных.
+4. **Заявка и PR:** заявку на тенант подаёт агент проекта (подана), согласует
+   владелец продукта; PR в `platform-config` ревьюит Platform Team.
+5. **Две версии, один продукт.** Локальная версия публикуется в GitHub
+   (`pol4/ArchIDE`) и поддерживается в актуальном состоянии по логике и промптам.
+   Платформенная версия ведётся в **отдельном локальном репозитории**
+   `~/Documents/archide-platform` (затем публикуется в Gitea платформы); она
+   **не форкает** продукт: `scripts/sync-upstream.sh` копирует `archide-poc/`
+   из основного репозитория по зафиксированному коммиту (`vendor/UPSTREAM`),
+   поэтому поведение и тексты промптов совпадают в обеих версиях.
+
+### 6.1. Состав платформенного репозитория
+
+```
+archide-platform/
+  vendor/archide-poc/     копия продукта (генерируется sync-upstream.sh)
+  vendor/deploy/          entrypoint (общий для обеих версий)
+  scripts/sync-upstream.sh
+  deploy/Dockerfile       образ для Harbor (база — через proxy-dockerhub)
+  deploy/tenant/          17 объектов: ns, quota, limitrange, 2×SA, SecretStore,
+                          2×ExternalSecret, 4×NetworkPolicy, Deployment/Service/
+                          PVC/Ingress, ArgoCD Application
+```
+
+## 7. Что нужно решить до старта (архив вопросов)
 
 1. `<project>` и хост — предлагается `archide` и `archide.platform.local`.
 2. Квоты тенанта: предлагается `requests.cpu 4 / memory 8Gi`, `limits 8 / 16Gi`
