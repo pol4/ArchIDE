@@ -54,14 +54,23 @@ docker compose -f deploy/docker-compose.yml up --build   # или сразу т�
 
 ---
 
-## 2. Kubernetes (кластер `farm`)
+## 2. Kubernetes
+
+> **Кластер `farm` работает по правилам платформы.** Порядок онбординга тенанта,
+> требования (подписанные/тегированные образы, Vault/ESO, default-deny, PSS,
+> `t-<project>-*`, GitOps через PR) и пошаговый план разобраны в
+> [`docs/PLATFORM_MIGRATION_PLAN.md`](../docs/PLATFORM_MIGRATION_PLAN.md).
+> Раздел ниже — общий чарт; для `farm` используются значения и обвязка из
+> `deploy/tenant/` (появляются в фазе Ф12), а не «свой namespace», как в раннем
+> черновике.
+
+### 2.1. Общий чарт (любой кластер)
 
 ```bash
 helm upgrade --install archide deploy/helm/archide \
   -n archide --create-namespace \
   -f deploy/helm/archide/values.yaml \
-  -f deploy/helm/archide/values-farm.yaml \
-  --set image.repository=192.168.20.254:30003/dev/archide \
+  --set image.repository=<registry>/<project>/archide \
   --set image.tag=<тег или digest> \
   --set-string config.llm.apiKey='<ключ инференса>'
 ```
@@ -73,7 +82,18 @@ helm template archide deploy/helm/archide -f deploy/helm/archide/values-farm.yam
 kubectl --context farm apply --dry-run=server -n archide -f /tmp/archide.yaml
 ```
 
-### Особенности кластера `farm` (важно)
+### 2.2. Историческая справка: ранний черновик для `farm`
+
+Раздел сохранён для контекста и **заменён** планом миграции. В частности,
+разворачивать ArchIDE в отдельном namespace `archide`, созданном вручную, в
+платформе **нельзя** — тенант живёт в `t-<project>-*`, который приходит из шаблона
+и онбординга, а платформенные ресурсы (Harbor project+robot, Vault role,
+Keycloak client, AppProject) создаёт Platform Team по заявке.
+
+<details>
+<summary>Ранние заметки (не руководство к действию)</summary>
+
+#### Особенности кластера `farm` (черновик)
 
 1. **Свой namespace.** Платформенные пространства (`dev-*`) управляются ArgoCD
    (`aisandbox-platform`, `syncPolicy: automated` с `prune` и `selfHeal`). ArchIDE
@@ -108,6 +128,8 @@ kubectl --context farm apply --dry-run=server -n archide -f /tmp/archide.yaml
    config.llm.apiKey=…` (создаётся Secret `archide-llm`) или заранее созданным
    Secret'ом: `--set config.llm.existingSecret=archide-llm`. Для платформенного
    хранилища секретов доступен `external-secrets`.
+
+</details>
 
 ### Обновление и удаление
 

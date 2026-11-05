@@ -1,28 +1,33 @@
-# Values for the `farm` cluster (192.168.20.254).
+# Значения для платформы `farm` (онбординг тенанта, см.
+# docs/PLATFORM_MIGRATION_PLAN.md).
 #
-# The cluster is GitOps-managed (ArgoCD) for the `dev-*` namespaces; ArchIDE is
-# deployed into its OWN namespace so it neither conflicts with nor is pruned by
-# that application. The chart deliberately does not carry the ArgoCD instance
-# label, so the platform's sync does not adopt these resources.
+# Тенант живёт в `t-archide-app`, приложение разворачивается ArgoCD
+# (AppProject `tenant-archide`) из `deploy/tenant/`. Платформенные ресурсы
+# (Harbor project+robot, Vault role+KV, Keycloak client, AppProject) создаёт
+# Platform Team по заявке — здесь их нет.
 #
-# Images: the cluster verifies that images under `192.168.20.254:30003/dev/*` are
-# cosign-signed, so they must be pushed through the platform's signing flow.
-# See deploy/README.md.
+# Образы: harbor.platform.local/<project>/<app>:<git-sha>; тег `latest`
+# запрещён политикой платформы. Pull — через ExternalSecret `harbor-pull`
+# (dockerconfigjson), назначенный на default ServiceAccount тенанта.
 
 image:
-  repository: 192.168.20.254:30003/dev/archide
-  tag: latest            # replace with the digest produced by the build
+  repository: harbor.platform.local/archide/archide
+  # обязательный тег — короткий git-SHA сборки (deploy/build.sh --tag …)
+  tag: "REPLACE_WITH_GIT_SHA"
   pullPolicy: IfNotPresent
-  pullSecrets:
-    - name: archide-registry
+  # pull-секрет выдаёт ESO (harbor-pull) и вешает на default SA — в поде не нужен
+  pullSecrets: []
 
 config:
   runner: local
   llm:
-    # the workstation LLM on the LAN; reachable from the cluster
+    # живая модель доступна только если для неё разрешён egress;
+    # иначе первый деплой идёт в mock
     baseUrl: "http://192.168.20.20:8000/v1"
     model: "Qwen3.8-27B-UD-Q5_K_XL"
-    mode: "live"
+    mode: "mock"
+    # ключ приходит из Vault через ExternalSecret, не из значений
+    existingSecret: archide-secrets
 
 persistence:
   enabled: true
@@ -34,10 +39,12 @@ service:
   type: ClusterIP
   port: 8000
 
+# маршрутизацию для тенантов платформа отдаёт через ingress-nginx
+# (как в эталонном t-demo-app) либо через platform-gateway (HTTPRoute)
 ingress:
   enabled: true
   className: nginx
-  host: archide.aisandbox.farm.local
+  host: archide.platform.local
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "32m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"

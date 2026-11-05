@@ -99,6 +99,7 @@ ArchIDE проверяет её непротиворечивость, а код�
 | [`docs/ARCHITECT_GUIDE_UI.md`](docs/ARCHITECT_GUIDE_UI.md) | то же только через UI, со скриншотами · [EN](docs/ARCHITECT_GUIDE_UI.en.md) |
 | [`docs/RECONSTRUCTION_GUIDE.md`](docs/RECONSTRUCTION_GUIDE.md) | разбор полного прогона реального проекта по всем аспектам · [EN](docs/RECONSTRUCTION_GUIDE.en.md) |
 | [`docs/UI_REDESIGN.md`](docs/UI_REDESIGN.md) | предложение по редизайну интерфейса |
+| [`docs/PLATFORM_MIGRATION_PLAN.md`](docs/PLATFORM_MIGRATION_PLAN.md) | план доработок и развёртывания на платформе farm (онбординг тенанта) |
 
 ## Скриншоты
 
