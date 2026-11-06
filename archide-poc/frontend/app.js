@@ -122,6 +122,12 @@ const state = {
 async function api(path, options) {
   const res = await fetch(path, options);
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && !String(path).startsWith("/auth/")) {
+    // Ф12.1: на платформе API закрыт OIDC — уводим на вход и возвращаемся
+    const next = encodeURIComponent(location.pathname + location.search);
+    location.href = `/auth/login?next=${next}`;
+    throw new Error("authentication required");
+  }
   if (!res.ok) throw new Error(data.detail || res.statusText);
   return data;
 }

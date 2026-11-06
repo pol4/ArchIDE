@@ -377,7 +377,7 @@ referential actions (Ф4.2), impact/auto-repair (Ф4.3), язык огранич
 
 | ID | Задача | Изменения | Тесты (до реализации) | Готово, когда |
 |---|---|---|---|---|
-| Ф12.1 ⬜ | **OIDC-аутентификация** | код-flow (stdlib) + сессии, клиент `<project>-web` (realm `tenants`), `AUTH=oidc\|none`, claims → пользователь приложения | API + браузер | без сессии защищённые маршруты → 401 |
+| Ф12.1 ✅ | **OIDC-аутентификация** | код-flow (stdlib) + сессии, клиент `<project>-web` (realm `tenants`), `AUTH=oidc\|none`, claims → пользователь приложения | API + браузер | без сессии защищённые маршруты → 401 |
 | Ф12.2 ⬜ | **Метрики и health** | `/healthz`, `/readyz`, `/metrics` (Prometheus text) | API | scrape-контракт и пробы |
 | Ф12.3 ⬜ | **Тенант-манифесты** | `deploy/tenant/`: ns, quota, limitrange, SA `eso-vault`, SecretStore, ExternalSecret, netpol, Ingress, Application | dry-run + схема | dry-run зелёный в тенант-ns |
 | Ф12.4 ⬜ | **Образы** | `harbor.platform.local/<project>/<app>:<git-sha>`, базовый образ через `proxy-dockerhub`, pull через `harbor-pull` | скрипт сборки/пуша | образ в Harbor без `latest` |
@@ -385,6 +385,23 @@ referential actions (Ф4.2), impact/auto-repair (Ф4.3), язык огранич
 | Ф12.6 ⬜ | **Сеть** | default-deny + egress DNS/daas/LLM + ingress от ingress-nginx | манифесты | трафик приложения не ломается |
 | Ф12.7 ⬜ | **Наблюдаемость** (опц.) | OTLP-трейсы, структурные логи | API | трейсы в Tempo |
 | Ф12.8 ⬜ | **Сохранение локального деплоя** | платформенные механизмы — за флагами | существующий e2e | локальный контейнер работает как раньше |
+
+**Сделано (Ф12.1):** `backend/auth.py` — OIDC по code-flow со стандартной
+библиотекой: discovery провайдера, обмен кода на токен, личность из **userinfo**
+(локальная проверка подписи ID-токена не нужна — провайдер валидирует сам),
+сессия — **подписанная cookie** (HMAC-SHA256), поэтому под остаётся без состояния.
+Режимы: `auth.mode=none` (локальная версия, как раньше) и `oidc` (платформа).
+Маршруты `/auth/login`, `/auth/callback`, `/auth/logout`, `/auth/me`; `/healthz`
+и `/readyz` открыты. При `oidc` весь `/api/*` без сессии отдаёт 401 с подсказкой
+`login`, а UI уводит на вход. Личность из сессии приоритетнее параметра `user`,
+поэтому личные документы, диалоги и обратная связь автоматически становятся
+персональными. Тесты: 10 API-проверок (со стаб-IdP: 401 без сессии, редирект с
+state, callback и сессия, обмен кода, личность из claims, неверный код, открытый
+health, выход) + 3 браузерных. Манифесты тенанта включают OIDC (issuer realm
+`tenants`, клиент `archide-web`, секреты из Vault).
+
+**Замечание по безопасности:** сессия stateless — отозвать отдельную cookie до
+истечения TTL нельзя; при необходимости добавить короткий TTL или список отзыва.
 
 Обязательные политики платформы: `runAsNonRoot`, `readOnlyRootFilesystem`,
 `no-latest-tag`, requests+limits, default-deny NetworkPolicy.

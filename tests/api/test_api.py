@@ -46,6 +46,37 @@ def req(method: str, path: str, body=None, headers=None, timeout: float = 40):
             return exc.code, {"raw": raw.decode("utf-8", "ignore")}
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Return 3xx as-is so a test can inspect Location/Set-Cookie."""
+
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+def req_cookies(method: str, path: str, body=None, headers=None, cookies=None, timeout: float = 20):
+    """Request without following redirects; returns (status, headers, cookies, body)."""
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    request = urllib.request.Request(BASE + path, data=data, method=method)
+    request.add_header("Content-Type", "application/json")
+    if cookies:
+        request.add_header("Cookie", "; ".join(f"{k}={v}" for k, v in cookies.items()))
+    for key, value in (headers or {}).items():
+        request.add_header(key, value)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)
+    try:
+        with opener.open(request, timeout=timeout) as resp:
+            status, hdrs, raw = resp.status, resp.headers, resp.read()
+    except urllib.error.HTTPError as exc:
+        status, hdrs, raw = exc.code, exc.headers, exc.read()
+    jar = {}
+    for value in (hdrs.get_all("Set-Cookie") or []):
+        head = value.split(";")[0]
+        if "=" in head:
+            key, val = head.split("=", 1)
+            jar[key.strip()] = val.strip()
+    return status, hdrs, jar, raw
+
+
 def check(name: str, cond: bool, detail: str = "") -> None:
     RESULTS.append((name, bool(cond), detail))
     print(("PASS  " if cond else "FAIL  ") + name + (("  :: " + detail) if (detail and not cond) else ""))
@@ -1389,6 +1420,98 @@ def main() -> int:
     st_fc, bad2 = req("POST", "/api/feedback", {"user": "arch", "kind": "explicit", "signal": "meh",
                                                 "about": {"run": "r-1"}})
     check("Ф6.2 an unknown signal is rejected", st_fc == 400, f"{st_fc} {bad2}")
+
+    # --- Ф12.1: OIDC-аутентификация -----------------------------------------
+    idp_log = pathlib.Path(STUB_STATE) / "idp.jsonl"
+    idp_log.unlink(missing_ok=True)
+
+    class _Idp(http.server.BaseHTTPRequestHandler):
+        def _json(self, code, payload):
+            raw = json.dumps(payload).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+        def do_GET(self):  # noqa: N802
+            if self.path.startswith("/.well-known/openid-configuration"):
+                return self._json(200, {"issuer": idp_url,
+                                        "authorization_endpoint": idp_url + "/authorize",
+                                        "token_endpoint": idp_url + "/token",
+                                        "userinfo_endpoint": idp_url + "/userinfo"})
+            if self.path.startswith("/userinfo"):
+                return self._json(200, {"sub": "u-1", "email": "alice@example.local",
+                                        "preferred_username": "alice"})
+            if self.path.startswith("/authorize"):
+                return self._json(200, {"ok": True})
+            return self._json(404, {"detail": "not found"})
+
+        def do_POST(self):  # noqa: N802
+            raw = self.rfile.read(int(self.headers.get("Content-Length") or 0)).decode("utf-8", "ignore")
+            with idp_log.open("a", encoding="utf-8") as fh:
+                fh.write(raw + "\n")
+            if "code=good" in raw:
+                return self._json(200, {"access_token": "at-good", "id_token": "it",
+                                        "token_type": "Bearer"})
+            return self._json(400, {"error": "invalid_grant"})
+
+        def log_message(self, *args):  # noqa: D401
+            return
+
+    idp = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Idp)
+    threading.Thread(target=idp.serve_forever, daemon=True).start()
+    idp_url = f"http://127.0.0.1:{idp.server_address[1]}"
+    put_config({"auth": {"mode": "oidc", "issuer": idp_url, "client_id": "archide-web",
+                         "client_secret": "s3cret", "session_secret": "test-session-secret"}})
+    try:
+        st_o, _h, _c, _b = req_cookies("GET", "/api/agents")
+        check("Ф12.1 без сессии защищённый API отвечает 401", st_o == 401, str(st_o))
+
+        st_l, lh, lc, _b = req_cookies("GET", "/auth/login")
+        loc = lh.get("Location") or ""
+        check("Ф12.1 вход ведёт на IdP и выставляет state",
+              st_l in (302, 303) and "/authorize" in loc and "state=" in loc
+              and any("state" in k for k in lc),
+              f"{st_l} {loc[:90]} cookies={list(lc)}")
+
+        state = next((v for k, v in lc.items() if "state" in k), "")
+        st_c, _ch, cc, _b = req_cookies("GET", f"/auth/callback?code=good&state={state}", cookies=lc)
+        check("Ф12.1 успешный callback выдаёт сессию",
+              st_c in (200, 302, 303) and any("session" in k for k in cc), f"{st_c} cookies={list(cc)}")
+
+        session = {k: v for k, v in cc.items() if "session" in k}
+        st_a, _h2, _c2, body = req_cookies("GET", "/api/agents", cookies=session)
+        check("Ф12.1 с сессией защищённый API доступен", st_a == 200, str(st_a))
+
+        prompts = [line for line in idp_log.read_text().splitlines() if line.strip()]
+        check("Ф12.1 код обменивается на токен у IdP",
+              any("grant_type=authorization_code" in p for p in prompts), str(prompts)[:140])
+
+        # личность берётся из сессии: диалог без параметра user — это диалог alice
+        req_cookies("POST", "/api/dialogue", {"user": "alice", "role": "user", "text": "oidc turn"},
+                    cookies=session)
+        _s, _h3, _c3, raw = req_cookies("GET", "/api/dialogue", cookies=session)
+        turns = json.loads(raw or b"{}").get("turns") or []
+        check("Ф12.1 личность пользователя берётся из claims",
+              any(t.get("text") == "oidc turn" for t in turns), json.dumps(turns)[:140])
+
+        st_bad, _h4, _c4, _b = req_cookies("GET", f"/auth/callback?code=bad&state={state}", cookies=lc)
+        check("Ф12.1 неверный код не даёт сессию", st_bad in (400, 401), str(st_bad))
+
+        st_h, _h5, _c5, _b = req_cookies("GET", "/healthz")
+        check("Ф12.1 health остаётся открытым", st_h == 200, str(st_h))
+
+        st_out, _h6, oc, _b = req_cookies("POST", "/auth/logout", cookies=session)
+        check("Ф12.1 выход очищает сессию",
+              st_out in (200, 302, 303), f"{st_out} cookies={list(oc)}")
+        cleared = {k: v for k, v in oc.items() if "session" in k} or {"archide_session": ""}
+        st_after, _h7, _c7, _b = req_cookies("GET", "/api/agents", cookies=cleared)
+        check("Ф12.1 после выхода сессия не принимается", st_after == 401, str(st_after))
+    finally:
+        idp.shutdown()
+        idp.server_close()
+        put_config({"auth": {"mode": "none"}})
 
     # --- Ф6.1: the dialogue store (per architect, per project, with provenance) --
     req("POST", "/api/projects", {"name": "trip", "repo": "design://trip"})   # the mirror target

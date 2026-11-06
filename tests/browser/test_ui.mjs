@@ -1741,6 +1741,34 @@ async function runProjects(browser) {
   await page.close();
 }
 
+async function runAuthGuard(browser) {
+  // Ф12.1: с включённым OIDC API закрыт, а UI уводит на вход
+  await putConfig({ auth: { mode: "oidc", issuer: "http://127.0.0.1:1",
+                            client_id: "archide-web", session_secret: "e2e-secret" } });
+  try {
+    const page = await browser.newPage();
+    await page.evaluateOnNewDocument(() => { try { localStorage.clear(); } catch (e) {} });
+    await page.setViewport({ width: 1280, height: 900 });
+    await page.goto(`${BASE}/`, { waitUntil: 'load' });
+    await sleep(1500);
+    const probe = await page.evaluate(async () => {
+      const r = await fetch('/api/agents');
+      const body = await r.json().catch(() => ({}));
+      return { status: r.status, login: body.login || '' };
+    });
+    check('Ф12.1 the API is closed without a session',
+      probe.status === 401 && probe.login === '/auth/login', JSON.stringify(probe));
+    check('Ф12.1 the UI sends an unauthenticated visitor to the login',
+      /\/auth\/login/.test(page.url()), page.url());
+
+    const health = await page.evaluate(async () => (await fetch('/healthz')).status);
+    check('Ф12.1 health stays open with OIDC on', health === 200, String(health));
+    await page.close();
+  } finally {
+    await putConfig({ auth: { mode: "none" } });
+  }
+}
+
 async function runDialogueStore(browser) {
   // Ф6.1: the chat keeps every turn with its provenance (model/run/view/selection)
   await putConfig({ llm: { mode: 'mock' }, agent: { runner: 'local' } });
@@ -2915,6 +2943,7 @@ async function runLive(browser) {
     await runSynthesis(browser);
     await runRagAnswer(browser);
     await runDialogueStore(browser);
+    await runAuthGuard(browser);
     await runBottomPanel(browser);
     await runChatCommands(browser);
     await runValidationPanel(browser);

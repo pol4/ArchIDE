@@ -45,6 +45,17 @@ DEFAULT_CONFIG = {
         "timeout": 1800,
         "env": {},
     },
+    # Ф12.1: authentication. "none" — the standalone/local version is open;
+    # "oidc" — the platform version requires a login (Keycloak client per tenant).
+    "auth": {
+        "mode": "none",
+        "issuer": "",
+        "client_id": "",
+        "client_secret": "",
+        "session_secret": "",
+        "redirect_uri": "",
+        "scopes": "openid profile email",
+    },
     "agent": {
         # "docker" -> run the agent as a network service in a container
         # "local"  -> run the agent in-process on the host (no docker)

@@ -21,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from backend import agents, analysis, archdoc, codegen, design, dialogue as dialogue_mod, docs as docs_mod, feedback as feedback_mod, gateway, graphdiff, handoff, layouts, maintenance, metamodel, model_store, projects, rag as rag_mod, runtime, sandbox
+from backend import agents, analysis, archdoc, auth as auth_mod, codegen, design, dialogue as dialogue_mod, docs as docs_mod, feedback as feedback_mod, gateway, graphdiff, handoff, layouts, maintenance, metamodel, model_store, projects, rag as rag_mod, runtime, sandbox
 from backend import constraints as constraints_mod
 from backend import generate as generate_mod
 from backend import review as review_mod
@@ -76,6 +76,106 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         return self.rfile.read(length) if length else b""
 
+    # --- Ф12.1: OIDC-сессия ------------------------------------------------
+    def _cookies(self) -> dict:
+        raw = self.headers.get("Cookie") or ""
+        jar = {}
+        for part in raw.split(";"):
+            if "=" in part:
+                key, value = part.split("=", 1)
+                jar[key.strip()] = value.strip()
+        return jar
+
+    def _cfg(self) -> dict:
+        return config_mod.load_config()
+
+    def _session_user(self) -> str:
+        """The user behind the session cookie ("" when auth is off or the session is gone)."""
+        cfg = self._cfg()
+        if not auth_mod.enabled(cfg):
+            return ""
+        return auth_mod.session_user(cfg, self._cookies().get(auth_mod.SESSION_COOKIE, ""))
+
+    def _user(self, query: dict | None = None, body: dict | None = None) -> str:
+        """Identity for personal data: the session wins, then the explicit parameter."""
+        user = self._session_user()
+        if user:
+            return user
+        if body and body.get("user"):
+            return str(body["user"])
+        if query and query.get("user"):
+            return str(query["user"])
+        return "default"
+
+    def _guard(self, route: str) -> bool:
+        """True when the request may proceed. Blocks /api/* without a session."""
+        cfg = self._cfg()
+        if not auth_mod.enabled(cfg):
+            return True
+        if route in ("/healthz", "/readyz") or route.startswith("/auth/") or not route.startswith("/api/"):
+            return True
+        if self._session_user():
+            return True
+        self._json(401, {"detail": "authentication required", "login": "/auth/login"})
+        return False
+
+    def _auth_login(self) -> None:
+        cfg = self._cfg()
+        scheme = "https" if (self.headers.get("X-Forwarded-Proto") or "").lower() == "https" else "http"
+        redirect_uri = str((auth_mod.settings(cfg).get("redirect_uri") or "")
+                           or f"{scheme}://{self.headers.get('Host') or 'localhost'}/auth/callback")
+        state = auth_mod.new_state()
+        try:
+            target = auth_mod.login_url(cfg, redirect_uri, state)
+        except Exception as exc:  # noqa: BLE001 - the provider may be unreachable
+            return self._json(502, {"detail": f"identity provider unavailable: {exc}"})
+        secure = redirect_uri.startswith("https://")
+        self.send_response(302)
+        self.send_header("Location", target)
+        self.send_header("Set-Cookie", auth_mod.cookie(auth_mod.STATE_COOKIE, state, 600, secure))
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _auth_callback(self, query: dict) -> None:
+        cfg = self._cfg()
+        state = str(query.get("state") or "")
+        expected = self._cookies().get(auth_mod.STATE_COOKIE, "")
+        if not state or not expected or state != expected:
+            return self._json(401, {"detail": "state mismatch — restart the login"})
+        code = str(query.get("code") or "")
+        if not code:
+            return self._json(401, {"detail": "no authorization code"})
+        scheme = "https" if (self.headers.get("X-Forwarded-Proto") or "").lower() == "https" else "http"
+        redirect_uri = str((auth_mod.settings(cfg).get("redirect_uri") or "")
+                           or f"{scheme}://{self.headers.get('Host') or 'localhost'}/auth/callback")
+        try:
+            result = auth_mod.exchange(cfg, code, redirect_uri)
+        except Exception as exc:  # noqa: BLE001 - any provider failure is a failed login
+            return self._json(401, {"detail": f"login failed: {exc}"})
+        user = auth_mod.identity(result.get("claims") or {})
+        if not user:
+            return self._json(401, {"detail": "the provider returned no identity"})
+        try:
+            session = auth_mod.make_session(cfg, user)
+        except ValueError as exc:
+            return self._json(500, {"detail": str(exc)})
+        secure = redirect_uri.startswith("https://")
+        self.send_response(302)
+        self.send_header("Location", "/")
+        self.send_header("Set-Cookie", auth_mod.cookie(auth_mod.SESSION_COOKIE, session,
+                                                       auth_mod.SESSION_TTL, secure))
+        self.send_header("Set-Cookie", auth_mod.cookie(auth_mod.STATE_COOKIE, "", 0, secure))
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _auth_logout(self) -> None:
+        secure = (self.headers.get("X-Forwarded-Proto") or "").lower() == "https"
+        self.send_response(302)
+        self.send_header("Location", "/")
+        self.send_header("Set-Cookie", auth_mod.cookie(auth_mod.SESSION_COOKIE, "", 0, secure))
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def _read_json(self) -> dict:
         return json.loads(self._read_body() or b"{}")
 
@@ -111,6 +211,22 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         route, query = parsed.path, self._query(parsed.query)
 
+        if route == "/healthz":
+            return self._json(200, {"ok": True})
+        if route == "/readyz":
+            return self._json(200, {"ok": True, "data": str(config_mod.DATA_DIR)})
+        if route == "/auth/login":
+            return self._auth_login()
+        if route == "/auth/callback":
+            return self._auth_callback(query)
+        if route == "/auth/logout":
+            return self._auth_logout()
+        if route == "/auth/me":
+            user = self._session_user()
+            return self._json(200 if user else 401, {"user": user} if user else {"detail": "no session"})
+        if not self._guard(route):
+            return
+
         if route == "/api/agents":
             return self._json(200, {"agents": agents.list_agents_with_limits(config_mod.load_config())})
         if route == "/api/config":
@@ -125,18 +241,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"runs": runs.list_runs()})
         if route == "/api/feedback":
             return self._json(200, {"feedback": feedback_mod.history(
-                query.get("user", "default"), int(query.get("limit", 50) or 50))})
+                self._user(query), int(query.get("limit", 50) or 50))})
 
         if route == "/api/feedback/summary":
-            return self._json(200, {"summary": feedback_mod.summary(query.get("user", "default"))})
+            return self._json(200, {"summary": feedback_mod.summary(self._user(query))})
 
         if route == "/api/dialogue":
             user = query.get("user", "default")
             return self._json(200, {"turns": dialogue_mod.history(
-                user, query.get("project") or None, int(query.get("limit", 50) or 50))})
+                self._user(query), query.get("project") or None, int(query.get("limit", 50) or 50))})
 
         if route == "/api/dialogue/summary":
-            return self._json(200, {"dialogues": dialogue_mod.summary(query.get("user", "default"))})
+            return self._json(200, {"dialogues": dialogue_mod.summary(self._user(query))})
 
         if route == "/api/docs":
             return self._json(200, {"docs": docs_mod.list_docs(query.get("user", "default"))})
@@ -255,6 +371,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(404, {"detail": "unknown project"})
             return self._json(200, {"project": project})
 
+        if not self._guard(urlparse(self.path).path):
+            return
         match_sub = _MODEL_SUB_RE.match(route)
         if match_sub and match_sub.group(2) == "layout":
             try:
@@ -301,6 +419,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:  # noqa: N802
         route = urlparse(self.path).path
+        if not self._guard(urlparse(self.path).path):
+            return
         match = _MODEL_SUB_RE.match(route)
         if match and match.group(2) == "layout":
             layouts.clear(match.group(1))
@@ -310,6 +430,11 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         route, query = parsed.path, self._query(parsed.query)
+
+        if route == "/auth/logout":
+            return self._auth_logout()
+        if not self._guard(route):
+            return
 
         # Ф8.5: create a model from a template (scaffolding)
         match_scaffold = _MODEL_SUB_RE.match(route)
@@ -511,7 +636,7 @@ class Handler(BaseHTTPRequestHandler):
             except json.JSONDecodeError as exc:
                 return self._json(400, {"detail": f"invalid JSON: {exc}"})
             try:
-                item = feedback_mod.record(str(body.get("user") or "default"),
+                item = feedback_mod.record(self._user(None, body),
                                            str(body.get("kind") or "explicit"),
                                            str(body.get("signal") or ""),
                                            body.get("about"), body.get("comment"), body.get("score"))
@@ -525,7 +650,7 @@ class Handler(BaseHTTPRequestHandler):
             except json.JSONDecodeError as exc:
                 return self._json(400, {"detail": f"invalid JSON: {exc}"})
             try:
-                turn = dialogue_mod.record(str(body.get("user") or "default"),
+                turn = dialogue_mod.record(self._user(None, body),
                                            str(body.get("role") or "user"),
                                            str(body.get("text") or ""),
                                            body.get("project"), body.get("provenance"),
@@ -544,7 +669,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(400, {"detail": f"invalid JSON: {exc}"})
             cfg = config_mod.load_config()
             try:
-                result = rag_mod.answer(cfg, str(body.get("user") or "default"),
+                result = rag_mod.answer(cfg, self._user(None, body),
                                         str(body.get("query") or ""), int(body.get("top", 5) or 5))
             except ValueError as exc:
                 return self._json(400, {"detail": str(exc)})
