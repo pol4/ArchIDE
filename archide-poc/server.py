@@ -21,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from backend import agents, analysis, archdoc, auth as auth_mod, codegen, design, dialogue as dialogue_mod, docs as docs_mod, feedback as feedback_mod, gateway, graphdiff, handoff, layouts, maintenance, metamodel, model_store, projects, rag as rag_mod, runtime, sandbox
+from backend import agents, analysis, archdoc, auth as auth_mod, codegen, design, dialogue as dialogue_mod, metrics as metrics_mod, docs as docs_mod, feedback as feedback_mod, gateway, graphdiff, handoff, layouts, maintenance, metamodel, model_store, projects, rag as rag_mod, runtime, sandbox
 from backend import constraints as constraints_mod
 from backend import generate as generate_mod
 from backend import review as review_mod
@@ -64,6 +64,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+        self._after(code)
 
     def _bytes(self, code: int, content_type: str, data: bytes) -> None:
         self.send_response(code)
@@ -176,6 +177,35 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
+    def _raw(self, code: int, body: str, content_type: str = "text/plain; charset=utf-8") -> None:
+        raw = body.encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+        self._after(code)
+
+    def _after(self, code: int) -> None:
+        """Ф12.2: счётчик запросов и структурная строка доступа."""
+        route = getattr(self, "_route", "-")
+        started = getattr(self, "_t0", None)
+        seconds = (time.time() - started) if started else 0.0
+        try:
+            metrics_mod.inc_request(self.command or "GET", route, code)
+        except Exception:  # noqa: BLE001
+            pass
+        if str(os.environ.get("ARCHIDE_LOG_FORMAT", "")).lower() == "json":
+            try:
+                user = self._session_user()
+            except Exception:  # noqa: BLE001
+                user = ""
+            print(metrics_mod.access_line(self.command or "GET", route, code, seconds, user), flush=True)
+
+    def _begin(self) -> None:
+        self._route = urlparse(self.path).path
+        self._t0 = time.time()
+
     def _read_json(self) -> dict:
         return json.loads(self._read_body() or b"{}")
 
@@ -208,8 +238,24 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- routes ----------------------------------------------------------
     def do_GET(self) -> None:  # noqa: N802
+        self._begin()
         parsed = urlparse(self.path)
         route, query = parsed.path, self._query(parsed.query)
+
+        if route == "/metrics":
+            cfg = self._cfg()
+            try:
+                models = len(model_store.list_models(config_mod.MODELS_DIR))
+            except Exception:  # noqa: BLE001 - метрика не должна ломать отдачу
+                models = 0
+            metrics_mod.set_gauge("archide_models", models)
+            info = {
+                "version": "0.1.0",
+                "runner": str((cfg.get("agent") or {}).get("runner") or "?"),
+                "auth": str((cfg.get("auth") or {}).get("mode") or "none"),
+                "platform": "farm" if auth_mod.enabled(cfg) else "standalone",
+            }
+            return self._raw(200, metrics_mod.render(info), "text/plain; version=0.0.4; charset=utf-8")
 
         if route == "/healthz":
             return self._json(200, {"ok": True})
@@ -352,6 +398,7 @@ class Handler(BaseHTTPRequestHandler):
         return self._static("/index.html" if route == "/" else route)
 
     def do_PUT(self) -> None:  # noqa: N802
+        self._begin()
         route = urlparse(self.path).path
         if route == "/api/config":
             try:
@@ -418,6 +465,7 @@ class Handler(BaseHTTPRequestHandler):
         return self._json(404, {"detail": "not found"})
 
     def do_DELETE(self) -> None:  # noqa: N802
+        self._begin()
         route = urlparse(self.path).path
         if not self._guard(urlparse(self.path).path):
             return
@@ -428,6 +476,7 @@ class Handler(BaseHTTPRequestHandler):
         return self._json(404, {"detail": f"no route for {route}"})
 
     def do_POST(self) -> None:  # noqa: N802
+        self._begin()
         parsed = urlparse(self.path)
         route, query = parsed.path, self._query(parsed.query)
 

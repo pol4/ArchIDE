@@ -97,6 +97,11 @@ def start(repo: str, agent_id: str, cfg: dict, options: dict | None = None) -> s
 
 def _worker(run: Run, repo: str, agent_id: str, cfg: dict, options: dict | None = None) -> None:
     try:
+        try:
+            from . import metrics as metrics_mod
+            metrics_mod.inc("archide_runs_active")
+        except Exception:  # noqa: BLE001
+            metrics_mod = None
         graph, meta = reconstruct(repo, agent_id, cfg, run=run, options=options)
         run.meta = meta
         run.graph = graph
@@ -121,17 +126,40 @@ def _worker(run: Run, repo: str, agent_id: str, cfg: dict, options: dict | None 
             run.add_event("log", f"model not saved: {exc}")
 
         run.status = "done" if run.validation["ok"] else "invalid"
+        try:
+            from . import metrics as metrics_mod  # noqa: F811
+            metrics_mod.inc("archide_runs_total", {"status": run.status})
+            metrics_mod.set_gauge("archide_graph_nodes", len((graph or {}).get("nodes") or []))
+            metrics_mod.set_gauge("archide_graph_edges", len((graph or {}).get("edges") or []))
+        except Exception:  # noqa: BLE001
+            pass
 
         if run.status == "invalid":
             run.add_event("error", "graph failed validation: " + "; ".join(run.validation["errors"][:5]))
     except CancelledError:
         run.status = "cancelled"
         run.add_event("error", "run cancelled by user")
+        try:
+            from . import metrics as metrics_mod  # noqa: F811
+            metrics_mod.inc("archide_runs_total", {"status": "cancelled"})
+            metrics_mod.inc("archide_runs_active", value=-1)
+        except Exception:  # noqa: BLE001
+            pass
     except Exception as exc:  # noqa: BLE001 - surface to the UI
         run.error = str(exc)
         run.status = "error"
         run.add_event("error", str(exc))
+        try:
+            from . import metrics as metrics_mod  # noqa: F811
+            metrics_mod.inc("archide_runs_total", {"status": "error"})
+        except Exception:  # noqa: BLE001
+            pass
     finally:
+        try:
+            from . import metrics as metrics_mod  # noqa: F811
+            metrics_mod.inc("archide_runs_active", value=-1)
+        except Exception:  # noqa: BLE001
+            pass
         _persist(run)
 
 

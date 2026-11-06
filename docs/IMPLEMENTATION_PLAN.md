@@ -378,7 +378,7 @@ referential actions (Ф4.2), impact/auto-repair (Ф4.3), язык огранич
 | ID | Задача | Изменения | Тесты (до реализации) | Готово, когда |
 |---|---|---|---|---|
 | Ф12.1 ✅ | **OIDC-аутентификация** | код-flow (stdlib) + сессии, клиент `<project>-web` (realm `tenants`), `AUTH=oidc\|none`, claims → пользователь приложения | API + браузер | без сессии защищённые маршруты → 401 |
-| Ф12.2 ⬜ | **Метрики и health** | `/healthz`, `/readyz`, `/metrics` (Prometheus text) | API | scrape-контракт и пробы |
+| Ф12.2 ✅ | **Метрики и health** | `/healthz`, `/readyz`, `/metrics` (Prometheus text) | API | scrape-контракт и пробы |
 | Ф12.3 ⬜ | **Тенант-манифесты** | `deploy/tenant/`: ns, quota, limitrange, SA `eso-vault`, SecretStore, ExternalSecret, netpol, Ingress, Application | dry-run + схема | dry-run зелёный в тенант-ns |
 | Ф12.4 ⬜ | **Образы** | `harbor.platform.local/<project>/<app>:<git-sha>`, базовый образ через `proxy-dockerhub`, pull через `harbor-pull` | скрипт сборки/пуша | образ в Harbor без `latest` |
 | Ф12.5 ⬜ | **Секреты Vault/ESO** | ExternalSecret (`external-secrets.io/v1`) для ключа LLM и прочего | API + dry-run | секрет синхронизируется |
@@ -399,6 +399,20 @@ referential actions (Ф4.2), impact/auto-repair (Ф4.3), язык огранич
 state, callback и сессия, обмен кода, личность из claims, неверный код, открытый
 health, выход) + 3 браузерных. Манифесты тенанта включают OIDC (issuer realm
 `tenants`, клиент `archide-web`, секреты из Vault).
+
+**Сделано (Ф12.2):** `backend/metrics.py` — метрики без внешних библиотек:
+`/metrics` в формате Prometheus (`archide_info` с версией/runner/режимом auth,
+`archide_uptime_seconds`, `archide_requests_total{method,route,status}`,
+`archide_llm_calls_total{outcome}` + `archide_llm_call_seconds_sum/_count`,
+`archide_runs_total{status}`, `archide_runs_active`, `archide_models`,
+`archide_graph_nodes/edges`, `archide_auth_failures_total`). Вызовы LLM
+наблюдаются из `agent.core.call_llm` (импорт метрик необязательный — в образе
+песочницы его нет, и это не мешает вызову); прогоны учитываются в `runs.py`
+(старт/исход/активные). Структурные логи: `ARCHIDE_LOG_FORMAT=json` печатает
+JSON-строку доступа на запрос (метод, путь, статус, длительность, пользователь) —
+её собирает Loki платформы. `/metrics` открыт при включённом OIDC. Тесты: 6
+API-проверок (отдача и формат, счётчик по маршруту, наблюдение LLM, формат
+строки лога).
 
 **Замечание по безопасности:** сессия stateless — отозвать отдельную cookie до
 истечения TTL нельзя; при необходимости добавить короткий TTL или список отзыва.

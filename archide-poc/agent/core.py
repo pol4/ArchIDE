@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 
 FileList = list[tuple[str, str]]
 
@@ -182,14 +183,26 @@ def call_llm(llm: dict, messages: list[dict]) -> dict:
         request.add_header("Authorization", "Bearer " + str(llm["api_key"]))
 
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    # Ф12.2: наблюдаемость вызовов. Метрики живут в backend и есть только в
+    # серверном образе — в песочнице агента импорт просто не удастся, и это ок.
+    _started = time.time()
+    _outcome = "ok"
     try:
         with opener.open(request, timeout=float(llm.get("timeout", 180))) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
+        _outcome = "error"
         detail = exc.read().decode("utf-8", "ignore")[:500]
         raise RuntimeError(f"LLM HTTP {exc.code}: {detail}") from exc
     except urllib.error.URLError as exc:
+        _outcome = "error"
         raise RuntimeError(f"LLM connection failed: {exc.reason}") from exc
+    finally:
+        try:
+            from backend import metrics as _metrics  # type: ignore
+            _metrics.observe_llm(time.time() - _started, _outcome)
+        except Exception:  # noqa: BLE001 - метрика не должна влиять на вызов
+            pass
 
     try:
         message = data["choices"][0]["message"]

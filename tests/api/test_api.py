@@ -1421,6 +1421,50 @@ def main() -> int:
                                                 "about": {"run": "r-1"}})
     check("Ф6.2 an unknown signal is rejected", st_fc == 400, f"{st_fc} {bad2}")
 
+    # --- Ф12.2: метрики и структурные логи ----------------------------------
+    st_m, _hm, _cm, raw_m = req_cookies("GET", "/metrics")
+    text = raw_m.decode("utf-8", "ignore")
+    check("Ф12.2 /metrics отдаётся", st_m == 200 and "archide_info" in text, f"{st_m} len={len(text)}")
+    check("Ф12.2 метрики в формате Prometheus",
+          "# HELP archide_info" in text and "# TYPE archide_info gauge" in text
+          and "archide_runs_total" in text and "archide_requests_total" in text,
+          text[:200])
+    check("Ф12.2 есть метрики процесса и сборки",
+          "archide_uptime_seconds" in text and "archide_llm_calls_total" in text
+          and "archide_graph_nodes" in text,
+          text[:200])
+
+    # счётчик запросов растёт: два обращения к известному маршруту
+    req("GET", "/api/agents")
+    req("GET", "/api/agents")
+    _s2, _h2, _c2, raw_m2 = req_cookies("GET", "/metrics")
+    text2 = raw_m2.decode("utf-8", "ignore")
+    import re as _re
+    m = _re.search(r'archide_requests_total\{[^}]*route="/api/agents"[^}]*\} (\d+)', text2)
+    check("Ф12.2 счётчик запросов считает по маршруту",
+          bool(m) and int(m.group(1)) >= 2, f"match={m.group(0) if m else None}")
+
+    # структурная строка доступа
+    from backend import metrics as metrics_mod  # noqa: E402
+    line = metrics_mod.access_line("GET", "/healthz", 200, 0.0123, "alice")
+    parsed = json.loads(line)
+    check("Ф12.2 структурный лог — одна JSON-строка",
+          parsed.get("path") == "/healthz" and parsed.get("status") == 200
+          and parsed.get("user") == "alice" and "duration_ms" in parsed,
+          line[:160])
+
+    # метрики LLM: вызов через стаб-IdP-подобный эндпоинт не нужен —
+    # проверяем, что наблюдение записывается и отдаётся
+    metrics_mod.observe_llm(1.5, "ok")
+    metrics_mod.observe_llm(2.5, "error")
+    _s3, _h3, _c3, raw_m3 = req_cookies("GET", "/metrics")
+    text3 = raw_m3.decode("utf-8", "ignore")
+    check("Ф12.2 вызовы LLM наблюдаются по исходу",
+          'archide_llm_calls_total{outcome="ok"}' in text3
+          and 'archide_llm_calls_total{outcome="error"}' in text3
+          and "archide_llm_call_seconds_sum" in text3,
+          [l for l in text3.splitlines() if "llm" in l][:3])
+
     # --- Ф12.1: OIDC-аутентификация -----------------------------------------
     idp_log = pathlib.Path(STUB_STATE) / "idp.jsonl"
     idp_log.unlink(missing_ok=True)
