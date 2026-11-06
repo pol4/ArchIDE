@@ -1585,6 +1585,16 @@ def main() -> int:
         check("Ф12.1 личность пользователя берётся из claims",
               any(t.get("text") == "oidc turn" for t in turns), json.dumps(turns)[:140])
 
+        # платформа регистрирует redirect_uri как https://<host>/callback —
+        # приложение обязано принимать и этот путь
+        st_l2, lh2, lc2, _b = req_cookies("GET", "/callback")
+        check("Ф12.1 платформенный путь /callback принимается как callback",
+              st_l2 in (302, 401), f"{st_l2}")
+        st_c2, _ch2, cc2, _b = req_cookies("GET", f"/callback?code=good&state={state}", cookies=lc)
+        check("Ф12.1 по /callback выдаётся та же сессия",
+              st_c2 in (200, 302, 303) and any("session" in k for k in cc2),
+              f"{st_c2} cookies={list(cc2)}")
+
         st_bad, _h4, _c4, _b = req_cookies("GET", f"/auth/callback?code=bad&state={state}", cookies=lc)
         check("Ф12.1 неверный код не даёт сессию", st_bad in (400, 401), str(st_bad))
 

@@ -263,7 +263,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"ok": True, "data": str(config_mod.DATA_DIR)})
         if route == "/auth/login":
             return self._auth_login()
-        if route == "/auth/callback":
+        if route in ("/auth/callback", "/callback"):
+            # платформа регистрирует redirect_uri как https://<host>/callback,
+            # поэтому принимаем оба пути
             return self._auth_callback(query)
         if route == "/auth/logout":
             return self._auth_logout()
