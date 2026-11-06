@@ -129,6 +129,20 @@ Service, Ingress, PVC). Перед применением — **обязател
 
 ### Шаг 4. Образ
 
+**Статус (Ф12.4):** манифесты, вендор и скрипт сборки готовы; сам образ пока не
+собран — нужен один из двух путей:
+
+1. **Локальный Docker** на рабочей станции (сейчас демон выключен) —
+   `./scripts/build-image.sh --push`.
+2. **Сборщик платформы.** Платформа предоставляет инструменты *копирования*
+   (`harbor.platform.local/platform/crane`, `platform/skopeo`), но инструмент
+   *сборки* в контракте не заявлен (`pf-ci` пуст). Нужно уточнить у Platform Team,
+   какой сборщик (kaniko и т.п.) и tool-образ использовать в Job.
+
+После сборки заменить в `deploy/tenant/60-app.yaml` тег `REPLACE_WITH_GIT_SHA`.
+
+
+
 ```bash
 ./deploy/build.sh --tag "$(git rev-parse --short HEAD)" \
   --push --registry harbor.platform.local/archide
