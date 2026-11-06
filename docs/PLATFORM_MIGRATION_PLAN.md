@@ -129,17 +129,28 @@ Service, Ingress, PVC). Перед применением — **обязател
 
 ### Шаг 4. Образ
 
-**Статус (Ф12.4):** манифесты, вендор и скрипт сборки готовы; сам образ пока не
-собран — нужен один из двух путей:
+**Статус (Ф12.4): путь найден.** Контракт обновлён до v1.9.0 — в нём появился
+раздел `build`: **BuildKit-демон** `buildkitd.pf-ci.svc:1234` (ns `pf-ci`,
+проверен — запущен) и Job с **`buildctl`** по шаблону
+`cluster-baseline/base/ci/buildctl-job.yaml`; tool-образ из шаблона —
+`docker.io/moby/buildkit:v0.16.0`, контекст клонируется внутри Job, тег всегда
+новый, push в `harbor.<domain>/<project>/<image>:<tag>`. Инструменты копирования
+(`image-copy.pf-ci.svc:8080`, `platform/crane`, `platform/skopeo`) — отдельно.
 
-1. **Локальный Docker** на рабочей станции (сейчас демон выключен) —
-   `./scripts/build-image.sh --push`.
-2. **Сборщик платформы.** Платформа предоставляет инструменты *копирования*
-   (`harbor.platform.local/platform/crane`, `platform/skopeo`), но инструмент
-   *сборки* в контракте не заявлен (`pf-ci` пуст). Нужно уточнить у Platform Team,
-   какой сборщик (kaniko и т.п.) и tool-образ использовать в Job.
+**Как собираем:** `deploy/build-job.yaml` в нашем тенанте (self-managed —
+`isolation.supported: [platform-managed, self-managed]`): Job в `t-archide-app`,
+демон общий, креды **свои** из Vault (git deploy-token и робот Harbor), плюс
+NetworkPolicy `allow-buildkit-egress` к `pf-ci:1234`. Платформенные секреты
+`pf-ci` не монтируем (кросс-namespace и правила «не трогать pf-*»).
 
-После сборки заменить в `deploy/tenant/60-app.yaml` тег `REPLACE_WITH_GIT_SHA`.
+```bash
+kubectl -n t-archide-app apply -f deploy/build-job.yaml
+kubectl -n t-archide-app logs job/archide-build -f   # тег = короткий git-SHA
+```
+
+Альтернатива без кластера — локальный Docker: `./scripts/build-image.sh --push`.
+После сборки заменить в `deploy/tenant/60-app.yaml` тег `REPLACE_WITH_GIT_SHA`
+на полученный SHA.
 
 
 
