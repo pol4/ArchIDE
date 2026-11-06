@@ -738,12 +738,23 @@ function renderProjectsPane() {
   bpInfo(state.project
     ? `active project: ${state.project}${state.modelName ? " · model " + state.modelName : ""}`
     : "pick a project, or create one and reconstruct a repository");
+  // панель перерисовывается — состояние кнопки Reconstruct пересчитываем тут
+  if (typeof window.syncRunButton === "function") window.syncRunButton();
+
 }
 
 // Ф10.3/Ф10.4: the reconstruction starts from the project, not from Setup
 async function runFromProjects() {
   const repo = ($("bp_repo") ? $("bp_repo").value : "").trim();
-  if (!repo) { bpInfo("enter a repository (URL or path) first"); return; }
+  if (!repo) {
+    // кнопка выглядела «мёртвой»: без адреса репозитория просто ничего не
+    // происходило. Теперь сообщение видно и в статусе, а поле подсвечено.
+    bpInfo("укажите адрес репозитория (URL или путь) и нажмите Reconstruct");
+    setStatus("Enter a repository address", "error");
+    if ($("bp_repo")) { $("bp_repo").focus(); $("bp_repo").classList.add("needs-input"); }
+    return;
+  }
+  if ($("bp_repo")) $("bp_repo").classList.remove("needs-input");
   let projectId = state.project;
   try {
     if (!projectId) {
@@ -1503,6 +1514,24 @@ function wireInspector() {
     if (ev.target.id === "tpl-modal") $("tpl-modal").classList.add("hidden");
   });
   $("bp_run").addEventListener("click", runFromProjects);
+  // кнопка должна объяснять своё состояние: без адреса репозитория она неактивна
+  const syncRunButton = () => {
+    if (!$("bp_run")) return;
+    const empty = !(($("bp_repo") && $("bp_repo").value) || "").trim();
+    $("bp_run").disabled = empty;
+    $("bp_run").title = empty
+      ? "сначала укажите адрес репозитория (URL или путь)"
+      : "reconstruct the repository into this project";
+    if (empty && $("bp_info")) bpInfo("укажите адрес репозитория (URL или путь), затем нажмите Reconstruct");
+  };
+  if ($("bp_repo")) {
+    $("bp_repo").addEventListener("input", syncRunButton);
+    $("bp_repo").addEventListener("change", syncRunButton);
+  }
+  // значение поля может быть выставлено программно (проект, демо) — пересчитываем
+  // состояние кнопки и при показе панели Projects
+  window.syncRunButton = syncRunButton;
+  syncRunButton();
   $("lens-back").addEventListener("click", closeLens);
   $("lens-mode").addEventListener("change", () => {
     if (!state.lens) return;

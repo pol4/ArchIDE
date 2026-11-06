@@ -1741,6 +1741,41 @@ async function runProjects(browser) {
   await page.close();
 }
 
+async function runReconstructButton(browser) {
+  // UX: без адреса репозитория кнопка Reconstruct неактивна и объясняет почему —
+  // иначе нажатие выглядит как «кнопка не работает»
+  await putConfig({ llm: { mode: 'mock' }, agent: { runner: 'local' } });
+  const page = await browser.newPage();
+  await page.evaluateOnNewDocument(() => { try { localStorage.clear(); } catch (e) {} });
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+  await page.setViewport({ width: 1440, height: 900 });
+  await page.goto(`${BASE}/`, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelector('main.layout')?.dataset.wired === '1', { timeout: 20000 });
+  await page.evaluate(() => document.getElementById('btab-projects').click());
+  await sleep(400);
+
+  // поле может быть предзаполнено последним репозиторием из конфига — очищаем
+  await page.$eval('#bp_repo', (el) => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await sleep(250);
+  const empty = await page.evaluate(() => ({
+    disabled: document.getElementById('bp_run').disabled,
+    hint: (document.getElementById('bp_info') || {}).textContent || '',
+  }));
+  check('UX: кнопка Reconstruct неактивна без адреса репозитория',
+    empty.disabled === true && /репозитор|repository/i.test(empty.hint), JSON.stringify(empty));
+
+  await page.$eval('#bp_repo', (el) => { el.value = 'https://example.local/repo.git'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await sleep(250);
+  const filled = await page.evaluate(() => document.getElementById('bp_run').disabled);
+  check('UX: с адресом репозитория кнопка активна', filled === false, String(filled));
+
+  await page.$eval('#bp_repo', (el) => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await sleep(250);
+  const back = await page.evaluate(() => document.getElementById('bp_run').disabled);
+  check('UX: очистка адреса снова блокирует кнопку', back === true, String(back));
+  await page.close();
+}
+
 async function runAuthGuard(browser) {
   // Ф12.1: с включённым OIDC API закрыт, а UI уводит на вход
   await putConfig({ auth: { mode: "oidc", issuer: "http://127.0.0.1:1",
@@ -2356,7 +2391,7 @@ async function runReviewFixes(browser) {
   // fix(3): "extend aspects" resumes from the project's repository
   await page.evaluate(() => document.getElementById('btab-projects').click());
   await sleep(300);
-  await page.$eval('#bp_repo', (el, v) => { el.value = v; }, REPO);
+  await page.$eval('#bp_repo', (el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }, REPO);
   await page.click('#bp_run');
   await page.waitForFunction(() => /Done|Invalid|Error/.test(document.getElementById('status').textContent), { timeout: 120000 });
   await page.evaluate(() => document.getElementById('btab-agent').click());
@@ -2402,7 +2437,7 @@ async function runWalkthrough(browser) {
   check('W1 a walkthrough project is created from the Projects pane', project === 'walkthrough', project);
 
   // 2. reconstruct the repository into it (mock profile, no LLM cost)
-  await page.$eval('#bp_repo', (el, v) => { el.value = v; }, REPO);
+  await page.$eval('#bp_repo', (el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }, REPO);
   await page.click('#bp_run');
   await page.waitForFunction(() => /Done|Invalid|Error/.test(document.getElementById('status').textContent), { timeout: 120000 });
   const run = await page.evaluate(() => ({
@@ -2571,7 +2606,7 @@ async function runBottomPanel(browser) {
     JSON.stringify(opened));
 
   // Ф10.4 - the reconstruction starts here, not in Setup
-  await page.$eval('#bp_repo', (el, v) => { el.value = v; }, REPO);
+  await page.$eval('#bp_repo', (el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }, REPO);
   await page.click('#bp_run');
   await sleep(1500);
   const started = await page.evaluate(() => document.getElementById('bp_info').textContent);
@@ -2872,7 +2907,7 @@ async function runLive(browser) {
   // S2 - start the reconstruction from the bottom Projects tab
   await page.click('#btab-projects');
   await sleep(300);
-  await page.$eval('#bp_repo', (el, v) => { el.value = v; }, REPO);
+  await page.$eval('#bp_repo', (el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }, REPO);
   await page.click('#bp_run');
   await page.click('#btab-events');
   await sleep(300);
@@ -2944,6 +2979,7 @@ async function runLive(browser) {
     await runRagAnswer(browser);
     await runDialogueStore(browser);
     await runAuthGuard(browser);
+    await runReconstructButton(browser);
     await runBottomPanel(browser);
     await runChatCommands(browser);
     await runValidationPanel(browser);
