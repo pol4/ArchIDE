@@ -43,6 +43,7 @@ class Run:
         self.meta: dict | None = None
         self.container: str | None = None
         self.created = time.time()
+        self.started_at = self.created
         self.updated = self.created
         self.cancel = threading.Event()
         self._lock = threading.Lock()
@@ -131,6 +132,16 @@ def _worker(run: Run, repo: str, agent_id: str, cfg: dict, options: dict | None 
             metrics_mod.inc("archide_runs_total", {"status": run.status})
             metrics_mod.set_gauge("archide_graph_nodes", len((graph or {}).get("nodes") or []))
             metrics_mod.set_gauge("archide_graph_edges", len((graph or {}).get("edges") or []))
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            from . import tracing as tracing_mod  # noqa: F811
+            tracing_mod.emit("archide.run",
+                             {"run.id": run.id, "run.status": run.status, "run.repo": str(repo)},
+                             float(getattr(run, "started_at", time.time())), time.time(),
+                             {"model": model_name_for(repo),
+                              "nodes": len((graph or {}).get("nodes") or []),
+                              "edges": len((graph or {}).get("edges") or [])})
         except Exception:  # noqa: BLE001
             pass
 

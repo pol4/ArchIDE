@@ -56,6 +56,12 @@ DEFAULT_CONFIG = {
         "redirect_uri": "",
         "scopes": "openid profile email",
     },
+    # Ф12.7: OTLP-трейсы (выключены, пока не задан endpoint)
+    "tracing": {
+        "enabled": False,
+        "endpoint": "",
+        "service": "archide",
+    },
     "agent": {
         # "docker" -> run the agent as a network service in a container
         # "local"  -> run the agent in-process on the host (no docker)

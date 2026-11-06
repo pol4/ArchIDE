@@ -1421,6 +1421,51 @@ def main() -> int:
                                                 "about": {"run": "r-1"}})
     check("Ф6.2 an unknown signal is rejected", st_fc == 400, f"{st_fc} {bad2}")
 
+    # --- Ф12.7: OTLP-трейсы (опционально) ------------------------------------
+    otlp_seen = []
+    class _Otlp(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):  # noqa: N802
+            raw = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            try:
+                otlp_seen.append(json.loads(raw or b"{}"))
+            except json.JSONDecodeError:
+                otlp_seen.append({"raw": raw[:200].decode("utf-8", "ignore")})
+            self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, *args):  # noqa: D401
+            return
+
+    otlp = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Otlp)
+    threading.Thread(target=otlp.serve_forever, daemon=True).start()
+    from backend import tracing as tracing_mod  # noqa: E402
+    put_config({"tracing": {"enabled": True,
+                            "endpoint": f"http://127.0.0.1:{otlp.server_address[1]}",
+                            "service": "archide-test"}})
+    try:
+        tracing_mod.emit("archide.run", {"run.id": "r-1", "run.status": "done"}, 10.0, 12.5,
+                         {"model": "TripApproval", "nodes": 42})
+        tracing_mod.flush()
+        check("Ф12.7 трейсы уходят в OTLP-коллектор", len(otlp_seen) >= 1,
+              f"получено {len(otlp_seen)}")
+        payload = otlp_seen[-1] if otlp_seen else {}
+        blob = json.dumps(payload, ensure_ascii=False)
+        check("Ф12.7 полезная нагрузка OTLP содержит ресурс и спан",
+              "resourceSpans" in blob and "archide.run" in blob and "archide-test" in blob,
+              blob[:200])
+        check("Ф12.7 у спана есть идентификаторы и длительность",
+              bool(payload.get("resourceSpans")) and
+              any(s.get("traceId") and s.get("spanId") and s.get("endTimeUnixNano")
+                  for rs in payload.get("resourceSpans", [])
+                  for ss in rs.get("scopeSpans", [])
+                  for s in ss.get("spans", [])),
+              blob[:200])
+    finally:
+        otlp.shutdown()
+        otlp.server_close()
+        put_config({"tracing": {"enabled": False}})
+
     # --- Ф12.2: метрики и структурные логи ----------------------------------
     st_m, _hm, _cm, raw_m = req_cookies("GET", "/metrics")
     text = raw_m.decode("utf-8", "ignore")

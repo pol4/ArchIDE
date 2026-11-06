@@ -165,16 +165,28 @@ pull в кластере — через ExternalSecret `harbor-pull` и default 
 ### Шаг 5. PR и GitOps
 
 PR в свой репозиторий (манифесты + чарт) и в `platform-config/tenants/archide/`.
-ArgoCD (AppProject `tenant-archide`) доводит тенант до `Synced/Healthy`.
+ArgoCD платформы (ns `pf-gitops`, AppProject `tenant-archide`) доводит тенант до `Synced/Healthy` (легаси-ns `argocd` выведен из эксплуатации).
 
 ### Шаг 6. Smoke (по §9 онбординга)
+
+Готовый скрипт (только чтение, ничего не меняет):
+
+```bash
+./scripts/smoke.sh          # в платформенном репозитории
+```
+
+Проверяет namespace, синхронизацию ExternalSecret'ов, наличие pull- и
+app-секретов, готовность Deployment, Service/Ingress/PVC, доступность
+`https://archide.platform.local/healthz` и `/metrics`, закрытость API без сессии
+(401) и состояние `Application tenant-archide` в ArgoCD платформы (ns
+`pf-gitops` — легаси-ns `argocd` выведен из эксплуатации).
 
 ```bash
 kubectl get ns t-archide-app
 kubectl -n t-archide-app get externalsecret,secret,deploy,svc,ingress
 kubectl -n t-archide-app logs deploy/archide
 curl -k https://archide.platform.local/healthz
-kubectl -n argocd get application | grep archide
+kubectl -n pf-gitops get application tenant-archide
 ```
 
 ### Шаг 7. Приёмка и передача
