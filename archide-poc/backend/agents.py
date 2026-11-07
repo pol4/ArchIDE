@@ -86,6 +86,9 @@ def list_agents_with_limits(cfg: dict) -> list[dict]:
     for agent in list_agents():
         item = dict(agent)
         item["limits"] = effective_limits(agent, cfg)
+        # агент вида `cli` запускается контейнером, поэтому ему нужен docker; при
+        # runner=local UI не должен предлагать его — иначе прогон падает
+        item["requires_docker"] = str(agent.get("kind") or "builtin") != "builtin"
         out.append(item)
     return out
 

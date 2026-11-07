@@ -389,7 +389,11 @@ async function init() {
 
   const sel = $("agent");
   sel.innerHTML = "";
+  const runner = (config.agent || {}).runner || "docker";
   agents.agents.forEach((a) => {
+    // песочные агенты требуют docker: при runner=local их не предлагаем, иначе
+    // прогон падает с «agent requires the docker runner»
+    if (a.requires_docker && runner !== "docker") return;
     const opt = document.createElement("option");
     opt.value = a.id;
     opt.textContent = a.name;
@@ -397,6 +401,8 @@ async function init() {
     opt.title = (a.description || "") + lim;
     sel.appendChild(opt);
   });
+  // по умолчанию — встроенный агент: он работает и без docker
+  if ([...sel.options].some((o) => o.value === "builtin")) sel.value = "builtin";
 
   wireControls();
   wireCanvas();
@@ -636,6 +642,15 @@ async function openProject(projectId) {
     setStatus(`project ${projectId} · ${payload.model || "no model yet"}`, "ok");
   } catch (e) {
     setStatus(`project ${projectId}: ${e.message}`, "error");
+  }
+  // адрес репозитория хранится в проекте: подставляем его, чтобы не вводить дважды
+  if ($("bp_repo")) {
+    const project = (state.projects || []).find((p) => p.id === projectId);
+    const repos = (project && project.repos) || [];
+    if (repos.length && !$("bp_repo").value.trim()) {
+      $("bp_repo").value = repos[0];
+      $("bp_repo").dispatchEvent(new Event("input", { bubbles: true }));
+    }
   }
 }
 
@@ -1502,6 +1517,11 @@ function wireInspector() {
   $("btab-projects").addEventListener("click", () => showBottom("projects"));
   $("agent-apply").addEventListener("click", applyAgentAnswer);
   $("bp_open").addEventListener("click", () => openProject($("bp_project").value));
+  // выбор проекта в панели сразу открывает его (раньше требовалось ещё нажать
+  // Open, и адрес репозитория из проекта не подставлялся)
+  if ($("bp_project")) $("bp_project").addEventListener("change", () => {
+    if ($("bp_project").value) openProject($("bp_project").value);
+  });
   $("bp_new").addEventListener("click", () => $("project-new").click());
   if ($("bp_tpl")) $("bp_tpl").addEventListener("click", () => { showBottom("projects"); openTemplateWizard(); });
   if ($("tpl-select")) $("tpl-select").addEventListener("change", () => {

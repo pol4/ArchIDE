@@ -1421,6 +1421,20 @@ def main() -> int:
                                                 "about": {"run": "r-1"}})
     check("Ф6.2 an unknown signal is rejected", st_fc == 400, f"{st_fc} {bad2}")
 
+    # --- agents: совместимость с runner'ом --------------------------------
+    st_ag, ag = req("GET", "/api/agents")
+    items = {a.get("id"): a for a in (ag.get("agents") or [])}
+    check("агенты сообщают, нужен ли им docker",
+          st_ag == 200 and items.get("builtin", {}).get("requires_docker") is False
+          and items.get("kilocode", {}).get("requires_docker") is True,
+          json.dumps({k: v.get("requires_docker") for k, v in items.items()}))
+
+    put_config({"agent": {"runner": "local"}})
+    st_local, ag_local = req("GET", "/api/agents")
+    check("при runner=local возвращается признак совместимости",
+          st_local == 200 and all("requires_docker" in a for a in (ag_local.get("agents") or [])),
+          json.dumps(ag_local)[:160])
+
     # --- Ф12.7: OTLP-трейсы (опционально) ------------------------------------
     otlp_seen = []
     class _Otlp(http.server.BaseHTTPRequestHandler):

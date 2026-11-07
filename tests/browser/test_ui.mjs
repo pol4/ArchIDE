@@ -1766,6 +1766,10 @@ async function runReconstructButton(browser) {
   check('UX: без адреса репозитория кнопка объясняет, что нужно',
     empty.disabled === false && /репозитор|repository/i.test(empty.hint), JSON.stringify(empty));
 
+  const agentOpts = await page.$$eval('#bp_agent option', (els) => els.map((e) => e.value));
+  check('UX: при runner=local в списке агентов нет песочных',
+    agentOpts.includes('builtin') && !agentOpts.includes('kilocode'), JSON.stringify(agentOpts));
+
   await page.$eval('#bp_repo', (el) => { el.value = 'https://example.local/repo.git'; el.dispatchEvent(new Event('input', { bubbles: true })); });
   await sleep(250);
   const filled = await page.evaluate(() => ({
@@ -1924,6 +1928,49 @@ async function runRagAnswer(browser) {
   }
 }
 
+async function runProjectRepoPrefill(browser) {
+  // UX: адрес репозитория хранится в проекте и подставляется при его выборе —
+  // пользователь не должен вводить его дважды
+  await putConfig({ llm: { mode: 'mock' }, agent: { runner: 'local' } });
+  const page = await browser.newPage();
+  await page.evaluateOnNewDocument(() => { try { localStorage.clear(); } catch (e) {} });
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+  await page.setViewport({ width: 1440, height: 900 });
+  await page.goto(`${BASE}/`, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelector('main.layout')?.dataset.wired === '1', { timeout: 20000 });
+  await page.evaluate(() => document.getElementById('btab-projects').click());
+  await sleep(400);
+
+  // создаём проект через модалку, указав репозиторий (как это делает архитектор)
+  await page.click('#bp_new');
+  await sleep(300);
+  await page.$eval('#project_name', (el) => { el.value = 'prefill'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.$eval('#project_repo', (el) => { el.value = 'https://github.com/pol4/MLScan.git'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.click('#project-create');
+  await sleep(1200);
+
+  // очищаем поле и выбираем проект заново — адрес должен подставиться сам
+  await page.$eval('#bp_repo', (el) => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.evaluate(() => {
+    const sel = document.getElementById('bp_project');
+    sel.value = '';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await sleep(300);
+  await page.evaluate(() => {
+    const sel = document.getElementById('bp_project');
+    const opt = [...sel.options].find((o) => o.value === 'prefill');
+    if (opt) { sel.value = 'prefill'; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+  });
+  await sleep(900);
+  const state = await page.evaluate(() => ({
+    options: [...document.getElementById('bp_project').options].map((o) => o.value),
+    repo: document.getElementById('bp_repo').value,
+  }));
+  check('UX: при выборе проекта адрес репозитория подставляется',
+    state.options.includes('prefill') && /MLScan/.test(state.repo), JSON.stringify(state));
+  await page.close();
+}
 async function runSynthesis(browser) {
   // Ф11: synthesise an architecture from a description typed in the chat, get the
   // graph + the architecture documentation, hand the package to a coding agent,
@@ -2982,6 +3029,7 @@ async function runLive(browser) {
     await runDialogueStore(browser);
     await runAuthGuard(browser);
     await runReconstructButton(browser);
+    await runProjectRepoPrefill(browser);
     await runBottomPanel(browser);
     await runChatCommands(browser);
     await runValidationPanel(browser);
