@@ -1761,18 +1761,20 @@ async function runReconstructButton(browser) {
     disabled: document.getElementById('bp_run').disabled,
     hint: (document.getElementById('bp_info') || {}).textContent || '',
   }));
-  check('UX: кнопка Reconstruct неактивна без адреса репозитория',
-    empty.disabled === true && /репозитор|repository/i.test(empty.hint), JSON.stringify(empty));
+  // кнопка остаётся активной (серая кнопка читается как «не нажимается»),
+  // но при пустом адресе подсказывает, чего не хватает
+  check('UX: без адреса репозитория кнопка объясняет, что нужно',
+    empty.disabled === false && /репозитор|repository/i.test(empty.hint), JSON.stringify(empty));
 
   await page.$eval('#bp_repo', (el) => { el.value = 'https://example.local/repo.git'; el.dispatchEvent(new Event('input', { bubbles: true })); });
   await sleep(250);
-  const filled = await page.evaluate(() => document.getElementById('bp_run').disabled);
-  check('UX: с адресом репозитория кнопка активна', filled === false, String(filled));
-
-  await page.$eval('#bp_repo', (el) => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); });
-  await sleep(250);
-  const back = await page.evaluate(() => document.getElementById('bp_run').disabled);
-  check('UX: очистка адреса снова блокирует кнопку', back === true, String(back));
+  const filled = await page.evaluate(() => ({
+    disabled: document.getElementById('bp_run').disabled,
+    hint: (document.getElementById('bp_info') || {}).textContent || '',
+  }));
+  const repoValue = await page.$eval('#bp_repo', (el) => el.value);
+  check('UX: с адресом репозитория кнопка активна и адрес виден',
+    filled.disabled === false && repoValue.length > 0, JSON.stringify(filled));
   await page.close();
 }
 

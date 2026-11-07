@@ -1518,7 +1518,8 @@ function wireInspector() {
   const syncRunButton = () => {
     if (!$("bp_run")) return;
     const empty = !(($("bp_repo") && $("bp_repo").value) || "").trim();
-    $("bp_run").disabled = empty;
+    // кнопку НЕ блокируем: «серая» кнопка читается как «не нажимается». Вместо
+    // этого она всегда активна и при пустом адресе объясняет, чего не хватает.
     $("bp_run").title = empty
       ? "сначала укажите адрес репозитория (URL или путь)"
       : "reconstruct the repository into this project";

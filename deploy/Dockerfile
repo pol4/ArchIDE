@@ -20,6 +20,15 @@ ENV PYTHONUNBUFFERED=1 \
     ARCHIDE_PORT=8000 \
     ARCHIDE_RUNNER=local
 
+# Реконструкция клонирует репозиторий через git — он должен быть в образе.
+# Источники Debian переводим на https: на платформе egress на сборке ограничен 443.
+RUN set -eux; \
+    sed -i 's|http://deb.debian.org|https://deb.debian.org|g' \
+      /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends git ca-certificates; \
+    rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # the single source tree (server + backend + agent + frontend)
