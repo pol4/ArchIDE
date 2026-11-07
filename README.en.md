@@ -110,6 +110,7 @@ originals):
 | [`docs/RECONSTRUCTION_GUIDE.en.md`](docs/RECONSTRUCTION_GUIDE.en.md) | a full reconstruction run of a real project across all aspects |
 | [`docs/UI_REDESIGN.md`](docs/UI_REDESIGN.md) | the interface redesign proposal (Russian) |
 | [`docs/PLATFORM_MIGRATION_PLAN.md`](docs/PLATFORM_MIGRATION_PLAN.md) | plan for deploying ArchIDE on the farm platform (Russian) |
+| [`docs/EXAMPLE_GUIDE.md`](docs/EXAMPLE_GUIDE.md) | the **ApprovalHub example**: all C4 levels and all aspects (Russian) |
 
 ## Screenshots
 

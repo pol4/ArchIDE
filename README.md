@@ -100,6 +100,7 @@ ArchIDE проверяет её непротиворечивость, а код�
 | [`docs/RECONSTRUCTION_GUIDE.md`](docs/RECONSTRUCTION_GUIDE.md) | разбор полного прогона реального проекта по всем аспектам · [EN](docs/RECONSTRUCTION_GUIDE.en.md) |
 | [`docs/UI_REDESIGN.md`](docs/UI_REDESIGN.md) | предложение по редизайну интерфейса |
 | [`docs/PLATFORM_MIGRATION_PLAN.md`](docs/PLATFORM_MIGRATION_PLAN.md) | план доработок и развёртывания на платформе farm (онбординг тенанта) |
+| [`docs/EXAMPLE_GUIDE.md`](docs/EXAMPLE_GUIDE.md) | **пример ApprovalHub**: все уровни C4 и все аспекты — разбор синтеза и реконструкции |
 
 ## Скриншоты
 
