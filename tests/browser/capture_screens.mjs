@@ -111,7 +111,24 @@ await shot('02-inspector', 'column');
 // auto-enables the aspect and focuses the node (Ф2.13)
 // the reconstructed `ArchIDE` model carries no behaviour elements, so the lens
 // shots use `TripApproval`, which has a state machine (restored right after)
-const LENS_MODEL = process.env.LENS_MODEL || 'TripApproval';
+// детерминированная модель для кадров линзы: у неё точно есть аспект behavior
+const LENS_MODEL = process.env.LENS_MODEL || 'lens-demo';
+await fetch(`${BASE}/api/models/${LENS_MODEL}`, {
+  method: 'PUT', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ graph: { nodes: [
+    { id: 'system://lens', type: 'System', name: 'Lens Demo', parent: null, evidence: ['capture'] },
+    { id: 'container://lens/web', type: 'Container', name: 'Web App', parent: 'system://lens', evidence: ['capture'] },
+    { id: 'component://lens/api', type: 'Component', name: 'Approval Service', parent: 'container://lens/web', evidence: ['capture'] },
+    { id: 'sm://lens/request', type: 'StateMachine', name: 'Request Lifecycle', parent: 'component://lens/api', evidence: ['capture'] },
+    { id: 'state://lens/draft', type: 'State', name: 'draft', parent: 'sm://lens/request', evidence: ['capture'] },
+    { id: 'state://lens/approved', type: 'State', name: 'approved', parent: 'sm://lens/request', evidence: ['capture'] },
+    { id: 'transition://lens/a', type: 'Transition', name: 'approve', parent: 'sm://lens/request', evidence: ['capture'] },
+    { id: 'data://lens/trip', type: 'DataEntity', name: 'Trip Request', parent: 'container://lens/web', evidence: ['capture'] },
+  ], edges: [
+    { source: 'component://lens/api', target: 'data://lens/trip', type: 'reads' },
+    { source: 'state://lens/draft', target: 'state://lens/approved', type: 'flows_to' },
+  ] } }),
+});
 await loadModel(LENS_MODEL);
 const behaviorName = await page.evaluate(async () => {
   const name = document.getElementById('model_load').value;
@@ -129,12 +146,20 @@ if (behaviorName) {
   await clickNode(behaviorName);
   await sleep(600);
 }
+// надёжно: перебираем отрисованные узлы, пока не найдём тот, у которого есть
+// аспект behavior, и открываем линзу с него
 const chipClicked = await page.evaluate(() => {
-  const chip = [...document.querySelectorAll('#insp-aspects .chip')].find((c) => c.dataset.aspect === 'behavior');
-  if (chip) chip.click();
-  return !!chip;
+  const pick = () => [...document.querySelectorAll('#insp-aspects .chip')].find((c) => c.dataset.aspect === 'behavior');
+  if (pick()) { pick().click(); return true; }
+  const nodes = [...document.querySelectorAll('#canvas > g > g')].filter((g) => g.querySelector('rect.node-box'));
+  for (const g of nodes) {
+    g.querySelector('rect.node-box').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    const chip = pick();
+    if (chip) { chip.click(); return true; }
+  }
+  return false;
 });
-if (!chipClicked) console.log('warning: no behavior aspect chip for', behaviorName);
+if (!chipClicked) console.log('warning: no element with the behavior aspect on this model');
 await sleep(800);
 await shot('03-lens-state', 'stage');
 await page.select('#lens-mode', 'graph');
