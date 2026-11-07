@@ -2307,6 +2307,31 @@ async function runC4Notation(browser) {
     widths: [...document.querySelectorAll('#canvas path.edge-line')].map((p) => Number(p.getAttribute('stroke-width') || 0)),
     labelsE: [...document.querySelectorAll('#canvas text.edge-label')].map((t) => t.textContent),
   }));
+  // стандартная палитра C4: элементы — залитые блоки с белым/чёрным текстом
+  const palette = await page.evaluate(() => {
+    const out = {};
+    document.querySelectorAll('#canvas g[data-node-id]').forEach((gr) => {
+      const kind = gr.getAttribute('data-c4');
+      const rect = gr.querySelector('rect.node-box');
+      const label = gr.querySelector('text.node-label');
+      if (rect && label && !out[kind]) {
+        out[kind] = { fill: (rect.getAttribute('fill') || '').toUpperCase(),
+                      text: (label.getAttribute('fill') || '').toUpperCase() };
+      }
+    });
+    return out;
+  });
+  // в C4-виде показываются структурные элементы (люди относятся к аспекту
+  // доступа и проверяются в своей подзакладке)
+  const expectFill = { system: '#1168BD', container: '#438DD5',
+                       external: '#999999', component: '#85BBF0' };
+  const wrong = Object.entries(expectFill).filter(([k, v]) => (palette[k] || {}).fill !== v);
+  check('C4: элементы окрашены по стандартной палитре',
+    wrong.length === 0, JSON.stringify({ palette, wrong }));
+  check('C4: текст на элементах контрастный (белый на тёмных, чёрный на светлых)',
+    (palette.system || {}).text === '#FFFFFF' && (palette.component || {}).text === '#000000',
+    JSON.stringify(palette));
+
   const c4dash = await page.evaluate(() => ({
     dashed: [...document.querySelectorAll('#canvas g[data-c4="external"] rect.node-box')]
       .some((r) => (r.getAttribute('stroke-dasharray') || '') !== ''),

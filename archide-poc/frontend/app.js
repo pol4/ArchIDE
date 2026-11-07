@@ -27,6 +27,26 @@ const C4_KIND = {
   Process: "process", Activity: "process", Task: "process", Gateway: "process", Participant: "process",
   StateMachine: "behavior", State: "behavior", Transition: "behavior",
 };
+// Стандартная палитра C4 (тема Structurizr): залитые блоки, белый текст на
+// тёмных элементах и чёрный на светлых. Для аспектных типов, которых в C4 нет,
+// взяты близкие оттенки той же палитры.
+const C4_PALETTE = {
+  person:     { fill: "#08427B", text: "#FFFFFF" },
+  system:     { fill: "#1168BD", text: "#FFFFFF" },
+  external:   { fill: "#999999", text: "#FFFFFF" },
+  container:  { fill: "#438DD5", text: "#FFFFFF" },
+  component:  { fill: "#85BBF0", text: "#000000" },
+  database:   { fill: "#438DD5", text: "#FFFFFF" },
+  deployment: { fill: "#999999", text: "#FFFFFF" },
+  interface:  { fill: "#85BBF0", text: "#000000" },
+  access:     { fill: "#08427B", text: "#FFFFFF" },
+  quality:    { fill: "#85BBF0", text: "#000000" },
+  process:    { fill: "#438DD5", text: "#FFFFFF" },
+  behavior:   { fill: "#438DD5", text: "#FFFFFF" },
+  generic:    { fill: "#999999", text: "#FFFFFF" },
+};
+const C4_EDGE_COLOR = "#707070";   // стандартный цвет связей в C4
+
 const C4_KIND_LABEL = {
   person: "Person", system: "Software System", external: "External System",
   container: "Container", component: "Component", database: "Database",
@@ -3844,7 +3864,7 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
     const gap = 6;
     const from = edgeAnchor(acx, acy, a.w, a.h, dx, dy, gap);
     const to = edgeAnchor(bcx, bcy, b.w, b.h, -dx, -dy, gap);
-    const colour = EDGE_COLORS[t] || "#8b949e";
+    const colour = C4_EDGE_COLOR;   // в C4 все связи одного серого цвета
     // a gentle bend keeps the arrow clear of the boxes it passes
     const nx = -(to.y - from.y), ny = to.x - from.x;
     const nl = Math.hypot(nx, ny) || 1;
@@ -3912,33 +3932,17 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
     rect.setAttribute("class", "node-box" + (drillable ? " drillable" : "") + (selected ? " sel-node" : ""));
     rect.setAttribute("width", p.w);
     rect.setAttribute("height", p.h);
-    rect.setAttribute("fill", selected ? "#1f2a37" : "#161b22");
-    rect.setAttribute("stroke", color);
-    rect.setAttribute("stroke-width", String(selected ? 3 : kind === "system" ? 2.5 : neighbor ? 2.5 : 1.6));
+    const palette = C4_PALETTE[kind] || C4_PALETTE.generic;
+    rect.setAttribute("fill", palette.fill);
+    rect.setAttribute("stroke", selected ? "#FFFFFF" : "rgba(0,0,0,0.35)");
+    rect.setAttribute("stroke-width", String(selected ? 3 : neighbor ? 2 : 1));
     if (external) rect.setAttribute("stroke-dasharray", "7 5");
     g.appendChild(rect);
-    if (banded) {
-      // C4 look: a tinted header strip carrying the element kind
-      const band = document.createElementNS(NS, "rect");
-      band.setAttribute("width", p.w);
-      band.setAttribute("height", 21);
-      band.setAttribute("fill", color);
-      band.setAttribute("opacity", "0.18");
-      band.setAttribute("rx", 6);
-      g.appendChild(band);
-    } else {
-      const bar = document.createElementNS(NS, "rect");
-      bar.setAttribute("width", 4);
-      bar.setAttribute("height", p.h);
-      bar.setAttribute("fill", color);
-      bar.setAttribute("rx", 2);
-      g.appendChild(bar);
-    }
     if (kind === "deployment") {
       const inner = document.createElementNS(NS, "rect");
       inner.setAttribute("x", 5); inner.setAttribute("y", 5);
       inner.setAttribute("width", p.w - 10); inner.setAttribute("height", p.h - 10);
-      inner.setAttribute("fill", "none"); inner.setAttribute("stroke", color);
+      inner.setAttribute("fill", "none"); inner.setAttribute("stroke", palette.text);
       inner.setAttribute("stroke-width", "1"); inner.setAttribute("opacity", "0.55");
       inner.setAttribute("rx", 5);
       g.appendChild(inner);
@@ -3947,13 +3951,13 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
       const top = document.createElementNS(NS, "ellipse");
       top.setAttribute("cx", p.w / 2); top.setAttribute("cy", 13);
       top.setAttribute("rx", p.w / 2 - 3); top.setAttribute("ry", 11);
-      top.setAttribute("fill", "#0d1117"); top.setAttribute("stroke", color);
+      top.setAttribute("fill", palette.fill); top.setAttribute("stroke", palette.text);
       top.setAttribute("stroke-width", "1.4");
       g.appendChild(top);
       const bottom = document.createElementNS(NS, "ellipse");
       bottom.setAttribute("cx", p.w / 2); bottom.setAttribute("cy", p.h - 13);
       bottom.setAttribute("rx", p.w / 2 - 3); bottom.setAttribute("ry", 11);
-      bottom.setAttribute("fill", "none"); bottom.setAttribute("stroke", color);
+      bottom.setAttribute("fill", "none"); bottom.setAttribute("stroke", palette.text);
       bottom.setAttribute("stroke-width", "1.2"); bottom.setAttribute("opacity", "0.75");
       g.appendChild(bottom);
     }
@@ -3961,14 +3965,14 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
       // the C4 stick figure
       const head = document.createElementNS(NS, "circle");
       head.setAttribute("cx", 24); head.setAttribute("cy", 30); head.setAttribute("r", 8);
-      head.setAttribute("fill", "none"); head.setAttribute("stroke", color);
+      head.setAttribute("fill", "none"); head.setAttribute("stroke", palette.text);
       head.setAttribute("stroke-width", "2");
       g.appendChild(head);
       [[24, 38, 24, 62], [12, 48, 36, 48], [24, 62, 14, 78], [24, 62, 34, 78]].forEach(([x1, y1, x2, y2]) => {
         const line = document.createElementNS(NS, "line");
         line.setAttribute("x1", x1); line.setAttribute("y1", y1);
         line.setAttribute("x2", x2); line.setAttribute("y2", y2);
-        line.setAttribute("stroke", color); line.setAttribute("stroke-width", "2");
+        line.setAttribute("stroke", palette.text); line.setAttribute("stroke-width", "2");
         g.appendChild(line);
       });
     }
@@ -3979,6 +3983,7 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
     label.setAttribute("x", labelX);
     label.setAttribute("y", 32);
     label.setAttribute("text-anchor", anchor);
+    label.setAttribute("fill", palette.text);
     label.textContent = truncate(node.name || node.id, 22);
     g.appendChild(label);
     const type = document.createElementNS(NS, "text");
@@ -3986,6 +3991,7 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
     type.setAttribute("x", labelX);
     type.setAttribute("y", 48);
     type.setAttribute("text-anchor", anchor);
+    type.setAttribute("fill", palette.text);
     type.textContent = `[${C4_KIND_LABEL[kind] || node.type || "?"}]` + (drillable ? "  ⊕" : "");
     g.appendChild(type);
     // Detail inside the box: a summary of the node's children by type, so the
@@ -4005,6 +4011,7 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
       det.setAttribute("x", labelX);
       det.setAttribute("y", 64);
       det.setAttribute("text-anchor", anchor);
+      det.setAttribute("fill", palette.text);
       det.textContent = truncate(summary, 34);
       g.appendChild(det);
       ty = 64;
@@ -4014,6 +4021,7 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
     src.setAttribute("x", labelX);
     src.setAttribute("y", ty + 17);
     src.setAttribute("text-anchor", anchor);
+    src.setAttribute("fill", palette.text);
     src.textContent = "source: " + (both ? "code + docs" : sources[0]) + (both ? "" : "  ⚠");
     g.appendChild(src);
     if (node.note) {
@@ -4022,6 +4030,7 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
       note.setAttribute("x", labelX);
       note.setAttribute("y", ty + 34);
       note.setAttribute("text-anchor", anchor);
+      note.setAttribute("fill", palette.text);
       note.textContent = truncate(node.note, 30);
       g.appendChild(note);
     }
