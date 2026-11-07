@@ -213,8 +213,17 @@ Rules (same as for reconstruction):
 3. every node carries `description` and `evidence` — for a design the evidence is
    the document/section the element comes from;
 4. edges use the metamodel edge types; no dangling endpoints;
-5. cover what the specification asks for: structure, interfaces, data,
-   behaviour (states), processes, access roles, deployment and quality needs.
+5. build the FULL C4 hierarchy, all four levels:
+   L1 `System` (exactly one root) -> L2 `Container` -> L3 `Component` -> L4 `Module`;
+   `Person`, `ExternalSystem` and `Node` sit next to the system;
+6. cover EVERY aspect of the model, not only the structure:
+   `interface` (interfaces and operations), `data` (entities, stores, attributes),
+   `behaviour` (state machines, states, transitions), `process` (processes,
+   activities, tasks, gateways), `deployment` (nodes, environments, runtimes),
+   `access` (roles, permissions, policies), `quality` (requirements, NFR, SLO,
+   constraints) and `crosscutting` where the specification calls for it;
+7. a system of realistic size: if the specification names containers, components,
+   modules, roles, entities or processes, every one of them must appear in the graph.
 
 Repair policy: up to {max_repairs} attempts. On each attempt output ONLY the JSON
 object. There is no output file to write.

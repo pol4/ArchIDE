@@ -193,8 +193,28 @@ def _run_reconcile_fix(session, graph: dict, emit) -> dict:
 
 
 def _report_reconciliation(graph: dict, emit) -> None:
-    """Ф3.9: point out elements that ended a run without relationships/evidence."""
+    """Ф3.9: point out elements that ended a run without relationships/evidence.
+
+    Плюс отчёт о покрытии: неполнота по уровням C4 и аспектам должна быть видна в
+    ленте прогона, а не обнаруживаться на глаз по картинке.
+    """
     from .evaluate import aspect_metrics
+
+    try:
+        from . import merge as merge_mod
+        cov = merge_mod.coverage_report(graph)
+        emit("status", "coverage: levels " +
+             ", ".join(f"{k} {v}" for k, v in cov["levels"].items()) +
+             " · aspects " + ", ".join(f"{k} {v}" for k, v in sorted(cov["aspects"].items())))
+        if cov["missing_levels"] or cov["missing_aspects"]:
+            missing = []
+            if cov["missing_levels"]:
+                missing.append("levels " + ", ".join(cov["missing_levels"]))
+            if cov["missing_aspects"]:
+                missing.append("aspects " + ", ".join(cov["missing_aspects"]))
+            emit("error", "coverage: missing " + " · ".join(missing))
+    except Exception as exc:  # noqa: BLE001 - отчёт не должен ломать прогон
+        emit("log", f"coverage report failed: {exc}")
 
     metrics = aspect_metrics(graph)
     orphans = sum(m["orphans"] for m in metrics.values())

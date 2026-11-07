@@ -1421,6 +1421,46 @@ def main() -> int:
                                                 "about": {"run": "r-1"}})
     check("Ф6.2 an unknown signal is rejected", st_fc == 400, f"{st_fc} {bad2}")
 
+    # --- синтез: полнота уровней C4 и аспектов ----------------------------
+    from backend import prompt as prompt_mod  # noqa: E402
+    from backend import config as config_mod  # noqa: E402
+    from backend import metamodel as metamodel_mod  # noqa: E402
+
+    design = prompt_mod.build_design_prompt("Example", {"max_chars": 1000}, 3)
+    check("синтез: промпт требует все уровни C4",
+          all(t in design for t in ("System", "Container", "Component", "Module"))
+          and "L1" in design and "L4" in design,
+          design[:200])
+    check("синтез: промпт требует все аспекты",
+          "aspect" in design.lower() and "interface" in design.lower()
+          and "data" in design.lower() and "behaviour" in design.lower()
+          and "deployment" in design.lower() and "quality" in design.lower(),
+          design[:200])
+
+    from backend import merge as merge_mod  # noqa: E402
+
+    demo = {"nodes": [
+        {"id": "system://d", "type": "System", "name": "D", "parent": None, "evidence": ["x"]},
+        {"id": "container://d/c", "type": "Container", "name": "C", "parent": "system://d", "evidence": ["x"]},
+        {"id": "component://d/k", "type": "Component", "name": "K", "parent": "container://d/c", "evidence": ["x"]},
+        {"id": "module://d/m", "type": "Module", "name": "M", "parent": "component://d/k", "evidence": ["x"]},
+        {"id": "role://d/r", "type": "Role", "name": "R", "parent": "system://d", "evidence": ["x"]},
+    ], "edges": []}
+    cov = merge_mod.coverage_report(demo)
+    check("система сообщает покрытие уровней C4",
+          cov.get("levels", {}).get("L1") == 1 and cov["levels"].get("L4") == 1
+          and cov.get("missing_levels") == [], json.dumps(cov)[:200])
+    check("система сообщает покрытие аспектов",
+          cov.get("aspects", {}).get("structure") == 4
+          and "quality" in cov.get("missing_aspects", []),
+          json.dumps(cov)[:200])
+
+    defaults = config_mod.DEFAULT_CONFIG.get("context") or {}
+    listed = set(defaults.get("aspect_list") or [])
+    covered = set(metamodel_mod.ASPECTS.keys()) - {"structure"}
+    check("синтез: список аспектов покрывает метамодель",
+          covered <= listed, f"нет: {sorted(covered - listed)}")
+
     # --- agents: совместимость с runner'ом --------------------------------
     st_ag, ag = req("GET", "/api/agents")
     items = {a.get("id"): a for a in (ag.get("agents") or [])}

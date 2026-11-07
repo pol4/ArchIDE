@@ -123,7 +123,10 @@ DEFAULT_CONFIG = {
         # (Ф3.5): after the structural C4 pass, each aspect is reconstructed and
         # merged on its own, so the graph is extended in small checked steps.
         "aspect_passes": True,
-        "aspect_list": ["data", "interface", "behavior", "process", "deployment", "access", "quality"],
+        # порядок аспектных проходов; покрывает все аспекты метамодели, кроме
+        # `structure` (её даёт базовый проход)
+        "aspect_list": ["data", "interface", "behavior", "process", "deployment",
+                        "access", "quality", "aggregation", "crosscutting"],
         # Ф3.7: do not rebuild an aspect the graph already carries, and cap how
         # many elements one pass may add (0 = unlimited)
         # skip an aspect only when it is already covered — meant for RESUME runs

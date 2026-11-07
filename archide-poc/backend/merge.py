@@ -161,3 +161,51 @@ def candidates(code: dict, docs: dict) -> dict:
     code_only = [cid for key, ids in ck.items() if key not in dk for cid in ids]
     docs_only = [did for key, ids in dk.items() if key not in ck for did in ids]
     return {"auto_matched": auto_matched, "ambiguous": ambiguous, "code_only": code_only, "docs_only": docs_only}
+
+# ---------------------------------------------------------------------------
+# Покрытие: все ли уровни C4 и все ли аспекты представлены в графе
+# ---------------------------------------------------------------------------
+C4_LEVELS = [("L1", "System"), ("L2", "Container"), ("L3", "Component"), ("L4", "Module")]
+
+
+def coverage_report(graph: dict) -> dict:
+    """Сколько элементов на каждом уровне C4 и в каждом аспекте, и что пусто.
+
+    Нужно, чтобы неполнота модели была видна сразу: «все аспекты» и «все уровни»
+    — проверяемое утверждение, а не впечатление от картинки.
+    """
+    from . import metamodel as metamodel_mod
+
+    nodes = [n for n in (graph.get("nodes") or []) if n]
+    by_id = {n["id"]: n for n in nodes}
+
+    def depth(node: dict) -> int:
+        seen, current, k = set(), node, 0
+        while current and current.get("parent") in by_id and k < 12:
+            if current["id"] in seen:
+                break
+            seen.add(current["id"])
+            current = by_id[current["parent"]]
+            k += 1
+        return k
+
+    levels: dict[str, int] = {name: 0 for name, _ in C4_LEVELS}
+    for node in nodes:
+        for name, type_name in C4_LEVELS:
+            if node.get("type") == type_name:
+                levels[name] += 1
+                break
+
+    aspects: dict[str, int] = {}
+    for node in nodes:
+        aspect = metamodel_mod.aspect_of(node.get("type"))
+        aspects[aspect] = aspects.get(aspect, 0) + 1
+
+    all_aspects = list(metamodel_mod.ASPECTS.keys())
+    return {
+        "nodes": len(nodes),
+        "levels": levels,
+        "aspects": aspects,
+        "missing_levels": [name for name, count in levels.items() if not count],
+        "missing_aspects": [a for a in all_aspects if not aspects.get(a)],
+    }
