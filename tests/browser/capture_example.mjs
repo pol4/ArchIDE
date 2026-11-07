@@ -47,6 +47,36 @@ await page.evaluate(() => { const b = document.querySelector('#canvas-tabs .ctab
 await sleep(1200);
 await shot('28-example-aspect');
 
+// диаграммы всех аспектов: подзакладка показывает свой вид для выбранного элемента
+const ASPECT_SHOTS = [
+  ['30-example-states', 'behavior'],
+  ['31-example-process', 'process'],
+  ['32-example-data', 'data'],
+  ['33-example-interfaces', 'interface'],
+  ['34-example-deployment', 'deployment'],
+  ['35-example-access', 'access'],
+  ['36-example-quality', 'quality'],
+];
+// выбираем эле��ент с наибольшим числом аспектов (обычно контейнер сервиса)
+await page.evaluate(() => {
+  const nodes = [...document.querySelectorAll('#canvas > g > g')].filter((g) => g.querySelector('rect.node-box'));
+  if (nodes.length) nodes[0].querySelector('rect.node-box').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+});
+await sleep(600);
+for (const [name, view] of ASPECT_SHOTS) {
+  const ok = await page.evaluate((v) => {
+    const b = document.querySelector(`#canvas-tabs .ctab[data-view="${v}"]`);
+    if (!b) return false;
+    b.click();
+    return true;
+  }, view);
+  if (!ok) { console.log('warning: нет подзакладки', view); continue; }
+  await sleep(1100);
+  await shot(name);
+}
+await page.evaluate(() => { const b = document.querySelector('#canvas-tabs .ctab[data-view="c4"]'); if (b) b.click(); });
+await sleep(600);
+
 // отчёт по модели
 await page.evaluate(() => document.getElementById('report-open').click());
 await page.waitForFunction(() => (document.getElementById('report-body').textContent || '').length > 40, { timeout: 25000 }).catch(() => {});

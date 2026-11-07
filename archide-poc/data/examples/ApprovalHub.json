@@ -1,0 +1,1527 @@
+{
+  "edges": [
+    {
+      "source": "component://approvalhub/container/approval-service",
+      "target": "agg://approvalhub/request-aggregate",
+      "type": "aggregates"
+    },
+    {
+      "evidence": "00-description.md: ПОВЕДЕНИЕ (состояния заявки) описывает жизненный цикл заявки в сервисе согласования",
+      "source": "behaviour://request-state-machine",
+      "target": "component://approvalhub/container/approval-service",
+      "type": "anchored_to"
+    },
+    {
+      "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ",
+      "source": "deployment://environment/production",
+      "target": "component://approvalhub/system",
+      "type": "anchored_to"
+    },
+    {
+      "evidence": "00-description.md: ПРОЦЕССЫ: процесс «Согласование заявки» (... исполнение бухгалтерией).",
+      "source": "task://approval-request/accountant/execute",
+      "target": "participant://approval-request/accountant",
+      "type": "anchored_to"
+    },
+    {
+      "evidence": "00-description.md: ПРОЦЕССЫ: процесс «Согласование заявки» (... маршрут...).",
+      "source": "task://approval-request/approval-service/build-route",
+      "target": "participant://approval-request/approval-service",
+      "type": "anchored_to"
+    },
+    {
+      "evidence": "00-description.md: ПРОЦЕССЫ: процесс «Согласование заявки» (подача, проверка прав...).",
+      "source": "task://approval-request/approval-service/check-permissions",
+      "target": "participant://approval-request/approval-service",
+      "type": "anchored_to"
+    },
+    {
+      "evidence": "00-description.md: ПРОЦЕССЫ: процесс «Согласование заявки» (подача...).",
+      "source": "task://approval-request/employee/submit",
+      "target": "participant://approval-request/employee",
+      "type": "anchored_to"
+    },
+    {
+      "evidence": "00-description.md: ПРОЦЕССЫ: процесс «Согласование заявки» (... согласование руководителем...).",
+      "source": "task://approval-request/manager/approve",
+      "target": "participant://approval-request/manager",
+      "type": "anchored_to"
+    },
+    {
+      "evidence": "00-description.md: Внешняя система 1С:Бухгалтерия — обмен документами; ПРОЦЕССЫ: процесс «Ночная выгрузка расходов в 1С».",
+      "source": "task://nightly-export/1c-accounting/receive-documents",
+      "target": "participant://nightly-export/1c-accounting",
+      "type": "anchored_to"
+    },
+    {
+      "evidence": "00-description.md: КОНТЕЙНЕРЫ: планировщик задач (nightly-выгрузка расходов в 1С); ПРОЦЕССЫ: процесс «Ночная выгрузка расходов в 1С».",
+      "source": "task://nightly-export/task-scheduler/run-export",
+      "target": "participant://nightly-export/task-scheduler",
+      "type": "anchored_to"
+    },
+    {
+      "evidence": "00-description.md: сервис уведомлений (рассылка писем и внутренних оповещений); подписка на события в брокере",
+      "source": "component://approvalhub/container/notification-service",
+      "target": "iface://approvalhub/event-subscription-api",
+      "type": "consumes"
+    },
+    {
+      "evidence": "00-description.md: веб-приложение на React; REST API администрирования; Админка справочников",
+      "source": "component://approvalhub/container/web-app",
+      "target": "iface://approvalhub/rest-admin-api",
+      "type": "consumes"
+    },
+    {
+      "evidence": "00-description.md: веб-приложение на React (интерфейс сотрудник и руководитель); REST API согласования",
+      "source": "component://approvalhub/container/web-app",
+      "target": "iface://approvalhub/rest-approval-api",
+      "type": "consumes"
+    },
+    {
+      "evidence": "00-description.md: внешний сервис SSO (Keycloak) — вход сотрудников; веб-приложение на React",
+      "source": "component://approvalhub/container/web-app",
+      "target": "iface://approvalhub/sso-login-api",
+      "type": "consumes"
+    },
+    {
+      "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ",
+      "source": "deployment://environment/production",
+      "target": "deployment://internal-company-network",
+      "type": "contains"
+    },
+    {
+      "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ",
+      "source": "deployment://internal-company-network",
+      "target": "deployment://kubernetes-prod",
+      "type": "contains"
+    },
+    {
+      "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ",
+      "source": "deployment://internal-company-network",
+      "target": "deployment://office-network",
+      "type": "contains"
+    },
+    {
+      "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ; КОНТЕЙНЕРЫ",
+      "source": "component://approvalhub/container/approval-service",
+      "target": "deployment://kubernetes-prod",
+      "type": "deployed_on"
+    },
+    {
+      "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ; КОНТЕЙНЕРЫ",
+      "source": "component://approvalhub/container/notification-service",
+      "target": "deployment://kubernetes-prod",
+      "type": "deployed_on"
+    },
+    {
+      "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ; КОНТЕЙНЕРЫ",
+      "source": "component://approvalhub/container/postgresql",
+      "target": "deployment://kubernetes-prod",
+      "type": "deployed_on"
+    },
+    {
+      "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ; КОНТЕЙНЕРЫ",
+      "source": "component://approvalhub/container/rabbitmq",
+      "target": "deployment://kubernetes-prod",
+      "type": "deployed_on"
+    },
+    {
+      "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ; КОНТЕЙНЕРЫ",
+      "source": "component://approvalhub/container/redis-cache",
+      "target": "deployment://kubernetes-prod",
+      "type": "deployed_on"
+    },
+    {
+      "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ; КОНТЕЙНЕРЫ",
+      "source": "component://approvalhub/container/task-scheduler",
+      "target": "deployment://kubernetes-prod",
+      "type": "deployed_on"
+    },
+    {
+      "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ; КОНТЕЙНЕРЫ",
+      "source": "component://approvalhub/container/web-app",
+      "target": "deployment://office-network",
+      "type": "deployed_on"
+    },
+    {
+      "evidence": "00-description.md: компонент «Интеграция с 1С» (обмен документами)",
+      "source": "component://approvalhub/component/integration-1c",
+      "target": "iface://approvalhub/1c-integration-api",
+      "type": "exposes"
+    },
+    {
+      "evidence": "00-description.md: REST API администрирования",
+      "source": "component://approvalhub/container/approval-service",
+      "target": "iface://approvalhub/rest-admin-api",
+      "type": "exposes"
+    },
+    {
+      "evidence": "00-description.md: REST API согласования (POST /requests, GET /requests/{id}, POST /requests/{id}/approve, POST /requests/{id}/reject)",
+      "source": "component://approvalhub/container/approval-service",
+      "target": "iface://approvalhub/rest-approval-api",
+      "type": "exposes"
+    },
+    {
+      "evidence": "00-description.md: подписка на события в брокере",
+      "source": "component://approvalhub/container/rabbitmq",
+      "target": "iface://approvalhub/event-subscription-api",
+      "type": "exposes"
+    },
+    {
+      "cardinality": "1..1",
+      "evidence": "00-description.md: ДАННЫЕ: сущности ... Согласование; хранилища: основная БД.",
+      "source": "data://entity/approval",
+      "target": "data://store/main-db",
+      "type": "flows_to"
+    },
+    {
+      "cardinality": "1..1",
+      "evidence": "00-description.md: ДАННЫЕ: сущности ... СправочникПодразделений; хранилища: основная БД.",
+      "source": "data://entity/department-reference",
+      "target": "data://store/main-db",
+      "type": "flows_to"
+    },
+    {
+      "cardinality": "1..1",
+      "evidence": "00-description.md: ДАННЫЕ: сущности ... Сотрудник; хранилища: основная БД.",
+      "source": "data://entity/employee",
+      "target": "data://store/main-db",
+      "type": "flows_to"
+    },
+    {
+      "cardinality": "1..1",
+      "evidence": "00-description.md: ДАННЫЕ: сущности ... СтрокаРасхода; хранилища: основная БД.",
+      "source": "data://entity/expense-line",
+      "target": "data://store/main-db",
+      "type": "flows_to"
+    },
+    {
+      "cardinality": "0..N",
+      "evidence": "00-description.md: ТРЕБОВАНИЯ: время отклика списка заявок не более 500 мс; КОНТЕЙНЕРЫ: кэш Redis; ДАННЫЕ: сущности Заявка; хранилища: кэш.",
+      "source": "data://entity/request",
+      "target": "data://store/cache-store",
+      "type": "flows_to"
+    },
+    {
+      "cardinality": "1..1",
+      "evidence": "00-description.md: ДАННЫЕ: сущности Заявка; хранилища: основная БД.",
+      "source": "data://entity/request",
+      "target": "data://store/main-db",
+      "type": "flows_to"
+    },
+    {
+      "evidence": "00-description.md",
+      "source": "access://policy/authenticated-only",
+      "target": "component://approvalhub/system",
+      "type": "governs"
+    },
+    {
+      "evidence": "00-description.md",
+      "source": "access://policy/immutable-after-approval",
+      "target": "component://approvalhub/system",
+      "type": "governs"
+    },
+    {
+      "evidence": "00-description.md: модуль разбора ответов 1С; обмен документами",
+      "source": "iface://approvalhub/1c-integration-api",
+      "target": "operation://1c/receive-1c-response",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: процесс «Ночная выгрузка расходов в 1С»; обмен документами",
+      "source": "iface://approvalhub/1c-integration-api",
+      "target": "operation://1c/send-expense-document",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: подписка на события в брокере",
+      "source": "iface://approvalhub/event-subscription-api",
+      "target": "operation://event-subscription/subscribe-events",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: REST API администрирования; Админка справочников",
+      "source": "iface://approvalhub/rest-admin-api",
+      "target": "operation://rest-admin/manage-reference-data",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: REST API согласования (POST /requests/{id}/approve)",
+      "source": "iface://approvalhub/rest-approval-api",
+      "target": "operation://rest-approval/approve-request",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: REST API согласования (POST /requests)",
+      "source": "iface://approvalhub/rest-approval-api",
+      "target": "operation://rest-approval/create-request",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: REST API согласования (GET /requests/{id})",
+      "source": "iface://approvalhub/rest-approval-api",
+      "target": "operation://rest-approval/get-request",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: REST API согласования (POST /requests/{id}/reject)",
+      "source": "iface://approvalhub/rest-approval-api",
+      "target": "operation://rest-approval/reject-request",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: внешний сервис SSO (Keycloak) — вход сотрудников",
+      "source": "iface://approvalhub/sso-login-api",
+      "target": "operation://sso-login/login",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: сущности СтрокаРасхода; Ночная выгрузка расходов в 1С",
+      "source": "message://1c/expense-document-payload",
+      "target": "schema://expense-document-schema",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: сущности Заявка (номер, сумма, статус, автор, подразделение); POST /requests",
+      "source": "message://rest-approval/create-request-payload",
+      "target": "schema://request-payload-schema",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: сущности Заявка (номер, сумма, статус, автор, подразделение); GET /requests/{id}",
+      "source": "message://rest-approval/request-response",
+      "target": "schema://request-payload-schema",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: модуль разбора ответов 1С",
+      "source": "operation://1c/receive-1c-response",
+      "target": "message://1c/response-payload",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: процесс «Ночная выгрузка расходов в 1С»; сущности СтрокаРасхода",
+      "source": "operation://1c/send-expense-document",
+      "target": "message://1c/expense-document-payload",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: REST API согласования (POST /requests/{id}/approve)",
+      "source": "operation://rest-approval/approve-request",
+      "target": "message://rest-approval/approve-request-payload",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: REST API согласования (POST /requests); сущности Заявка",
+      "source": "operation://rest-approval/create-request",
+      "target": "message://rest-approval/create-request-payload",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: REST API согласования (GET /requests/{id}); сущности Заявка",
+      "source": "operation://rest-approval/get-request",
+      "target": "message://rest-approval/request-response",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md: REST API согласования (POST /requests/{id}/reject)",
+      "source": "operation://rest-approval/reject-request",
+      "target": "message://rest-approval/reject-request-payload",
+      "type": "has"
+    },
+    {
+      "evidence": "00-description.md",
+      "source": "access://role/accountant",
+      "target": "access://permission/execute",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md",
+      "source": "access://role/administrator",
+      "target": "access://permission/manage-reference-data",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md",
+      "source": "access://role/administrator",
+      "target": "access://permission/manage-rights",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md",
+      "source": "access://role/administrator",
+      "target": "access://permission/view-audit-log",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md",
+      "source": "access://role/employee",
+      "target": "access://permission/create-request",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md",
+      "source": "access://role/manager",
+      "target": "access://permission/approve",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md",
+      "source": "access://role/manager",
+      "target": "access://permission/reject",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md: ПОВЕДЕНИЕ (состояния заявки): согласована",
+      "source": "behaviour://request-state-machine",
+      "target": "behaviour://state/approved",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md: ПОВЕДЕНИЕ (состояния заявки): отмена",
+      "source": "behaviour://request-state-machine",
+      "target": "behaviour://state/cancelled",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md: ПОВЕДЕНИЕ (состояния заявки): черновик",
+      "source": "behaviour://request-state-machine",
+      "target": "behaviour://state/draft",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md: ПОВЕДЕНИЕ (состояния заявки): исполнена",
+      "source": "behaviour://request-state-machine",
+      "target": "behaviour://state/executed",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md: ПОВЕДЕНИЕ (состояния заявки): на согласовании",
+      "source": "behaviour://request-state-machine",
+      "target": "behaviour://state/in-approval",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md: ПОВЕДЕНИЕ (состояния заявки): отклонена",
+      "source": "behaviour://request-state-machine",
+      "target": "behaviour://state/rejected",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md: ПОВЕДЕНИЕ (состояния заявки): на согласовании -> согласована",
+      "source": "behaviour://request-state-machine",
+      "target": "behaviour://transition/approve",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md: ПОВЕДЕНИЕ (состояния заявки): из черновика — отмена",
+      "source": "behaviour://request-state-machine",
+      "target": "behaviour://transition/cancel",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md: ПОВЕДЕНИЕ (состояния заявки): согласована -> исполнена",
+      "source": "behaviour://request-state-machine",
+      "target": "behaviour://transition/execute",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md: ПОВЕДЕНИЕ (состояния заявки): из состояния на согласовании возможен отказ в состояние отклонена",
+      "source": "behaviour://request-state-machine",
+      "target": "behaviour://transition/reject",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md: ПОВЕДЕНИЕ (состояния заявки): черновик -> на согласовании",
+      "source": "behaviour://request-state-machine",
+      "target": "behaviour://transition/submit",
+      "type": "owns"
+    },
+    {
+      "evidence": "00-description.md: КОМПОНЕНТЫ (уровень 3): в сервисе согласования: компонент «Права и роли» (проверка доступа); ЛЮДИ И ВНЕШНИЕ СИСТЕМЫ: сотрудник; ДАННЫЕ: Сотрудник.",
+      "source": "component://approvalhub/component/access-control",
+      "target": "data://entity/employee",
+      "type": "reads"
+    },
+    {
+      "cardinality": "1..N",
+      "evidence": "00-description.md: КОМПОНЕНТЫ (уровень 3): в веб-приложении: компонент «Список согласований»; ДАННЫЕ: сущности ... Согласование.",
+      "source": "component://approvalhub/component/approvals-list",
+      "target": "data://entity/approval",
+      "type": "reads"
+    },
+    {
+      "cardinality": "1..N",
+      "evidence": "00-description.md: КОМПОНЕНТЫ (уровень 3): в веб-приложении: компонент «Список согласований»; ДАННЫЕ: сущности Заявка.",
+      "source": "component://approvalhub/component/approvals-list",
+      "target": "data://entity/request",
+      "type": "reads"
+    },
+    {
+      "evidence": "00-description.md: КОМПОНЕНТЫ (уровень 3): в веб-приложении: компонент «Список согласований»; ТРЕБОВАНИЯ: время отклика списка заявок не более 500 мс; КОНТЕЙНЕРЫ: кэш Redis; ДАННЫЕ: хранилища: кэш.",
+      "source": "component://approvalhub/component/approvals-list",
+      "target": "data://store/cache-store",
+      "type": "reads"
+    },
+    {
+      "evidence": "00-description.md: КОМПОНЕНТЫ (уровень 3): в веб-приложении: компонент «Список согласований»; ДАННЫЕ: хранилища: основная БД.",
+      "source": "component://approvalhub/component/approvals-list",
+      "target": "data://store/main-db",
+      "type": "reads"
+    },
+    {
+      "cardinality": "1..N",
+      "evidence": "00-description.md: КОНТЕЙНЕРЫ (уровень 2): планировщик задач (nightly-выгрузка расходов в 1С); ПРОЦЕССЫ: процесс «Ночная выгрузка расходов в 1С»; ДАННЫЕ: СтрокаРасхода.",
+      "source": "component://approvalhub/component/expense-export",
+      "target": "data://entity/expense-line",
+      "type": "reads"
+    },
+    {
+      "evidence": "00-description.md: КОМПОНЕНТЫ (уровень 3): в сервисе согласования: компонент «Интеграция с 1С» (обмен документами); ДАННЫЕ: СтрокаРасхода; ПРОЦЕССЫ: процесс «Ночная выгрузка расходов в 1С».",
+      "source": "component://approvalhub/component/integration-1c",
+      "target": "data://entity/expense-line",
+      "type": "reads"
+    },
+    {
+      "evidence": "00-description.md: КОМПОНЕНТЫ (уровень 3): в сервисе согласования: компонент «Заявки» (создание, редактирование, отмена); ДАННЫЕ: хранилища: основная БД.",
+      "source": "component://approvalhub/component/requests",
+      "target": "data://store/main-db",
+      "type": "reads"
+    },
+    {
+      "evidence": "00-description.md: КОМПОНЕНТЫ (уровень 3): в сервисе согласования: компонент «Маршруты согласования» (построение цепочки по сумме и подразделению); ДАННЫЕ: сущности Заявка (номер, сумма, статус, автор, подразделение).",
+      "source": "component://approvalhub/component/routes",
+      "target": "data://entity/request",
+      "type": "reads"
+    },
+    {
+      "evidence": "00-description.md: МОДУЛИ (уровень 4, код): в компоненте «Заявки» — модуль расчёта суммы; ДАННЫЕ: сущности Заявка (номер, сумма, статус, автор, подразделение).",
+      "source": "module://requests/amount-calculation",
+      "target": "data://entity/request",
+      "type": "reads"
+    },
+    {
+      "evidence": "00-description.md: МОДУЛИ (уровень 4, код): в компоненте «Заявки» — модуль валидации заявки; ДАННЫЕ: сущности Заявка.",
+      "source": "module://requests/validation",
+      "target": "data://entity/request",
+      "type": "reads"
+    },
+    {
+      "evidence": "00-description.md: МОДУЛИ (уровень 4, код): в компоненте «Маршруты согласования» — модуль правил маршрутизации; КОМПОНЕНТЫ: построение цепочки по сумме и подразделению; ДАННЫЕ: СправочникПодразделений.",
+      "source": "module://routes/routing-rules",
+      "target": "data://entity/department-reference",
+      "type": "reads"
+    },
+    {
+      "cardinality": "1..N",
+      "evidence": "00-description.md: ЛЮДИ И ВНЕШНИЕ СИСТЕМЫ: администратор (управляет правами и справочниками); КОМПОНЕНТЫ (уровень 3): в веб-приложении: компонент «Админка справочников»; ДАННЫЕ: СправочникПодразделений.",
+      "source": "component://approvalhub/component/admin-reference",
+      "target": "data://entity/department-reference",
+      "type": "writes"
+    },
+    {
+      "evidence": "00-description.md: КОМПОНЕНТЫ (уровень 3): в сервисе согласования: компонент «Аудит» (журнал всех действий); ТРЕБОВАНИЯ: все действия фиксируются в журнале аудита; ДАННЫЕ: хранилища: основная БД.",
+      "source": "component://approvalhub/component/audit",
+      "target": "data://store/main-db",
+      "type": "writes"
+    },
+    {
+      "cardinality": "0..1",
+      "evidence": "00-description.md: КОМПОНЕНТЫ (уровень 3): в веб-приложении: компонент «Форма заявки»; ИНТЕРФЕЙСЫ: REST API согласования (POST /requests); ДАННЫЕ: сущности Заявка.",
+      "source": "component://approvalhub/component/request-form",
+      "target": "data://entity/request",
+      "type": "writes"
+    },
+    {
+      "cardinality": "1..N",
+      "evidence": "00-description.md: КОМПОНЕНТЫ (уровень 3): в сервисе согласования: компонент «Заявки» (создание, редактирование, отмена); ДАННЫЕ: сущности Заявка.",
+      "source": "component://approvalhub/component/requests",
+      "target": "data://entity/request",
+      "type": "writes"
+    },
+    {
+      "evidence": "00-description.md: КОМПОНЕНТЫ (уровень 3): в сервисе согласования: компонент «Заявки» (создание, редактирование, отмена); ДАННЫЕ: хранилища: основная БД.",
+      "source": "component://approvalhub/component/requests",
+      "target": "data://store/main-db",
+      "type": "writes"
+    },
+    {
+      "cardinality": "1..N",
+      "evidence": "00-description.md: КОМПОНЕНТЫ (уровень 3): в сервисе согласования: компонент «Маршруты согласования» (построение цепочки по сумме и подразделению); ДАННЫЕ: сущности ... Согласование.",
+      "source": "component://approvalhub/component/routes",
+      "target": "data://entity/approval",
+      "type": "writes"
+    }
+  ],
+  "nodes": [
+    {
+      "description": "Permission to approve a request.",
+      "evidence": "00-description.md: ДОСТУП: права — согласование; руководитель согласует.",
+      "id": "access://permission/approve",
+      "name": "Approve Permission",
+      "parent": "access://role/manager",
+      "type": "Permission"
+    },
+    {
+      "description": "Permission to create a request.",
+      "evidence": "00-description.md: ДОСТУП: права — создание заявки; сотрудник подаёт заявки.",
+      "id": "access://permission/create-request",
+      "name": "Create Request Permission",
+      "parent": "access://role/employee",
+      "type": "Permission"
+    },
+    {
+      "description": "Permission to execute an approved request.",
+      "evidence": "00-description.md: ДОСТУП: права — исполнение; бухгалтер исполняет.",
+      "id": "access://permission/execute",
+      "name": "Execute Permission",
+      "parent": "access://role/accountant",
+      "type": "Permission"
+    },
+    {
+      "description": "Permission to manage reference data such as departments.",
+      "evidence": "00-description.md: администратор управляет справочниками.",
+      "id": "access://permission/manage-reference-data",
+      "name": "Manage Reference Data Permission",
+      "parent": "access://role/administrator",
+      "type": "Permission"
+    },
+    {
+      "description": "Permission to manage user rights and roles.",
+      "evidence": "00-description.md: ДОСТУП: права — управление правами; администратор управляет правами.",
+      "id": "access://permission/manage-rights",
+      "name": "Manage Rights Permission",
+      "parent": "access://role/administrator",
+      "type": "Permission"
+    },
+    {
+      "description": "Permission to reject a request.",
+      "evidence": "00-description.md: ДОСТУП: права — отклонение; руководитель согласует.",
+      "id": "access://permission/reject",
+      "name": "Reject Permission",
+      "parent": "access://role/manager",
+      "type": "Permission"
+    },
+    {
+      "description": "Permission to view the audit journal.",
+      "evidence": "00-description.md: ДОСТУП: права — просмотр журнала аудита.",
+      "id": "access://permission/view-audit-log",
+      "name": "View Audit Log Permission",
+      "parent": "access://role/administrator",
+      "type": "Permission"
+    },
+    {
+      "description": "Policy requiring that all actions be performed only by authenticated employees.",
+      "evidence": "00-description.md: ДОСТУП: политика — действия только у аутентифицированных сотрудников.",
+      "id": "access://policy/authenticated-only",
+      "name": "Authenticated Employees Only Policy",
+      "parent": "component://approvalhub/system",
+      "type": "Policy"
+    },
+    {
+      "description": "Policy preventing request modification after approval.",
+      "evidence": "00-description.md: ДОСТУП: заявку нельзя менять после согласования.",
+      "id": "access://policy/immutable-after-approval",
+      "name": "Immutable After Approval Policy",
+      "parent": "component://approvalhub/system",
+      "type": "Policy"
+    },
+    {
+      "description": "Role for accountants who execute approved requests.",
+      "evidence": "00-description.md: ДОСТУП: роли бухгалтер.",
+      "id": "access://role/accountant",
+      "name": "Accountant Role",
+      "parent": "component://approvalhub/system",
+      "type": "Role"
+    },
+    {
+      "description": "Role for administrators who manage rights and reference data.",
+      "evidence": "00-description.md: ДОСТУП: роли администратор.",
+      "id": "access://role/administrator",
+      "name": "Administrator Role",
+      "parent": "component://approvalhub/system",
+      "type": "Role"
+    },
+    {
+      "description": "Role for employees who submit requests.",
+      "evidence": "00-description.md: ДОСТУП: роли сотрудник.",
+      "id": "access://role/employee",
+      "name": "Employee Role",
+      "parent": "component://approvalhub/system",
+      "type": "Role"
+    },
+    {
+      "description": "Role for managers who approve or reject requests.",
+      "evidence": "00-description.md: ДОСТУП: роли руководитель.",
+      "id": "access://role/manager",
+      "name": "Manager Role",
+      "parent": "component://approvalhub/system",
+      "type": "Role"
+    },
+    {
+      "description": "Accountant executes the approved request and maintains expenses.",
+      "evidence": "00-description.md: ПРОЦЕССЫ: исполнение бухгалтерией.",
+      "id": "activity://approval-request/accountant-execution",
+      "name": "Accountant Execution",
+      "parent": "process://approval-request",
+      "type": "Activity"
+    },
+    {
+      "description": "System builds the approval chain by amount and department.",
+      "evidence": "00-description.md: ПРОЦЕССЫ: маршрут.",
+      "id": "activity://approval-request/build-route",
+      "name": "Build Approval Route",
+      "parent": "process://approval-request",
+      "type": "Activity"
+    },
+    {
+      "description": "System checks that the actor has required access rights.",
+      "evidence": "00-description.md: ПРОЦЕССЫ: проверка прав.",
+      "id": "activity://approval-request/check-permissions",
+      "name": "Check Permissions",
+      "parent": "process://approval-request",
+      "type": "Activity"
+    },
+    {
+      "description": "Manager approves or rejects the request.",
+      "evidence": "00-description.md: ПРОЦЕССЫ: согласование руководителем.",
+      "id": "activity://approval-request/manager-approval",
+      "name": "Manager Approval",
+      "parent": "process://approval-request",
+      "type": "Activity"
+    },
+    {
+      "description": "Employee submits a request for approval.",
+      "evidence": "00-description.md: ПРОЦЕССЫ: подача.",
+      "id": "activity://approval-request/submit",
+      "name": "Submit Request",
+      "parent": "process://approval-request",
+      "type": "Activity"
+    },
+    {
+      "description": "Scheduled activity sending expense documents to 1C Accounting.",
+      "evidence": "00-description.md: ПРОЦЕССЫ: ночная выгрузка расходов в 1С; ТРЕБОВАНИЯ: выгрузка расходов в 1С раз в сутки.",
+      "id": "activity://nightly-export/export-to-1c",
+      "name": "Export Expenses to 1C",
+      "parent": "process://nightly-expense-export",
+      "type": "Activity"
+    },
+    {
+      "description": "Accountant who executes approved requests and maintains expenses.",
+      "evidence": "00-description.md: ЛЮДИ И ВНЕШНИЕ СИСТЕМЫ: бухгалтер (исполняет и ведёт расходы).",
+      "id": "actor://accountant",
+      "name": "Accountant",
+      "parent": "component://approvalhub/system",
+      "type": "Actor"
+    },
+    {
+      "description": "Administrator who manages rights and reference data.",
+      "evidence": "00-description.md: ЛЮДИ И ВНЕШНИЕ СИСТЕМЫ: администратор (управляет правами и справочниками).",
+      "id": "actor://administrator",
+      "name": "Administrator",
+      "parent": "component://approvalhub/system",
+      "type": "Actor"
+    },
+    {
+      "description": "Employee who submits requests.",
+      "evidence": "00-description.md: ЛЮДИ И ВНЕШНИЕ СИСТЕМЫ: сотрудник (подаёт заявки).",
+      "id": "actor://employee",
+      "name": "Employee",
+      "parent": "component://approvalhub/system",
+      "type": "Actor"
+    },
+    {
+      "description": "Manager who approves or rejects requests.",
+      "evidence": "00-description.md: ЛЮДИ И ВНЕШНИЕ СИСТЕМЫ: руководитель (согласует).",
+      "id": "actor://manager",
+      "name": "Manager",
+      "parent": "component://approvalhub/system",
+      "type": "Actor"
+    },
+    {
+      "evidence": [
+        "design: aggregation over the request aggregate"
+      ],
+      "id": "agg://approvalhub/request-aggregate",
+      "name": "Request Aggregate Interface",
+      "parent": "component://approvalhub/container/approval-service",
+      "type": "AggregationInterface"
+    },
+    {
+      "description": "State machine describing request lifecycle states and transitions.",
+      "evidence": "00-description.md: ПОВЕДЕНИЕ (состояния заявки).",
+      "id": "behaviour://request-state-machine",
+      "name": "Request State Machine",
+      "parent": "component://approvalhub/container/approval-service",
+      "type": "StateMachine"
+    },
+    {
+      "description": "Request state after successful approval.",
+      "evidence": "00-description.md: ПОВЕДЕНИЕ: согласована.",
+      "id": "behaviour://state/approved",
+      "name": "Approved",
+      "parent": "behaviour://request-state-machine",
+      "type": "State"
+    },
+    {
+      "description": "Terminal state after cancellation from draft.",
+      "evidence": "00-description.md: ПОВЕДЕНИЕ: из черновика — отмена.",
+      "id": "behaviour://state/cancelled",
+      "name": "Cancelled",
+      "parent": "behaviour://request-state-machine",
+      "type": "State"
+    },
+    {
+      "description": "Initial request state before submission.",
+      "evidence": "00-description.md: ПОВЕДЕНИЕ: черновик.",
+      "id": "behaviour://state/draft",
+      "name": "Draft",
+      "parent": "behaviour://request-state-machine",
+      "type": "State"
+    },
+    {
+      "description": "Request state after accountant execution.",
+      "evidence": "00-description.md: ПОВЕДЕНИЕ: исполнена.",
+      "id": "behaviour://state/executed",
+      "name": "Executed",
+      "parent": "behaviour://request-state-machine",
+      "type": "State"
+    },
+    {
+      "description": "Request state while it is being approved by the route.",
+      "evidence": "00-description.md: ПОВЕДЕНИЕ: на согласовании.",
+      "id": "behaviour://state/in-approval",
+      "name": "In Approval",
+      "parent": "behaviour://request-state-machine",
+      "type": "State"
+    },
+    {
+      "description": "Terminal state after rejection during approval.",
+      "evidence": "00-description.md: ПОВЕДЕНИЕ: из состояния на согласовании возможен отказ в состояние отклонена.",
+      "id": "behaviour://state/rejected",
+      "name": "Rejected",
+      "parent": "behaviour://request-state-machine",
+      "type": "State"
+    },
+    {
+      "description": "Transition from In Approval to Approved when approval is granted.",
+      "evidence": "00-description.md: ПОВЕДЕНИЕ: на согласовании -> согласована.",
+      "id": "behaviour://transition/approve",
+      "name": "Approve Request",
+      "parent": "behaviour://request-state-machine",
+      "type": "Transition"
+    },
+    {
+      "description": "Transition from Draft to Cancelled when the author cancels the draft.",
+      "evidence": "00-description.md: ПОВЕДЕНИЕ: из черновика — отмена.",
+      "id": "behaviour://transition/cancel",
+      "name": "Cancel Request",
+      "parent": "behaviour://request-state-machine",
+      "type": "Transition"
+    },
+    {
+      "description": "Transition from Approved to Executed when accountant executes the request.",
+      "evidence": "00-description.md: ПОВЕДЕНИЕ: согласована -> исполнена.",
+      "id": "behaviour://transition/execute",
+      "name": "Execute Request",
+      "parent": "behaviour://request-state-machine",
+      "type": "Transition"
+    },
+    {
+      "description": "Transition from In Approval to Rejected when approval is denied.",
+      "evidence": "00-description.md: ПОВЕДЕНИЕ: из состояния на согласовании возможен отказ в состояние отклонена.",
+      "id": "behaviour://transition/reject",
+      "name": "Reject Request",
+      "parent": "behaviour://request-state-machine",
+      "type": "Transition"
+    },
+    {
+      "description": "Transition from Draft to In Approval when the request is submitted.",
+      "evidence": "00-description.md: ПОВЕДЕНИЕ: черновик -> на согласовании.",
+      "id": "behaviour://transition/submit",
+      "name": "Submit Request",
+      "parent": "behaviour://request-state-machine",
+      "type": "Transition"
+    },
+    {
+      "description": "Component for checking user access rights and roles.",
+      "evidence": "00-description.md: КОМПОНЕНТЫ: компонент «Права и роли» (проверка доступа).",
+      "id": "component://approvalhub/component/access-control",
+      "name": "Access Control Component",
+      "parent": "component://approvalhub/container/approval-service",
+      "type": "Component"
+    },
+    {
+      "description": "Web component for administrative management of reference data.",
+      "evidence": "00-description.md: КОМПОНЕНТЫ: в веб-приложении: компонент «Админка справочников».",
+      "id": "component://approvalhub/component/admin-reference",
+      "name": "Reference Administration Component",
+      "parent": "component://approvalhub/container/web-app",
+      "type": "Component"
+    },
+    {
+      "description": "Web component for viewing request and approval lists.",
+      "evidence": "00-description.md: КОМПОНЕНТЫ: в веб-приложении: компонент «Список согласований».",
+      "id": "component://approvalhub/component/approvals-list",
+      "name": "Approvals List Component",
+      "parent": "component://approvalhub/container/web-app",
+      "type": "Component"
+    },
+    {
+      "description": "Component maintaining the journal of all user and system actions.",
+      "evidence": "00-description.md: КОМПОНЕНТЫ: компонент «Аудит» (журнал всех действий).",
+      "id": "component://approvalhub/component/audit",
+      "name": "Audit Component",
+      "parent": "component://approvalhub/container/approval-service",
+      "type": "Component"
+    },
+    {
+      "description": "Component storing and rendering notification email templates.",
+      "evidence": "00-description.md: КОМПОНЕНТЫ: в сервисе уведомлений: компонент «Шаблоны писем».",
+      "id": "component://approvalhub/component/email-templates",
+      "name": "Email Templates Component",
+      "parent": "component://approvalhub/container/notification-service",
+      "type": "Component"
+    },
+    {
+      "description": "Scheduled component performing nightly export of expenses to 1C.",
+      "evidence": "00-description.md: КОНТЕЙНЕРЫ: планировщик задач (nightly-выгрузка расходов в 1С); ПРОЦЕССЫ: процесс «Ночная выгрузка расходов в 1С».",
+      "id": "component://approvalhub/component/expense-export",
+      "name": "Expense Export Component",
+      "parent": "component://approvalhub/container/task-scheduler",
+      "type": "Component"
+    },
+    {
+      "description": "Component for document exchange with 1C Accounting.",
+      "evidence": "00-description.md: КОМПОНЕНТЫ: компонент «Интеграция с 1С» (обмен документами).",
+      "id": "component://approvalhub/component/integration-1c",
+      "name": "1C Integration Component",
+      "parent": "component://approvalhub/container/approval-service",
+      "type": "Component"
+    },
+    {
+      "description": "Web component for creating and editing a request.",
+      "evidence": "00-description.md: КОМПОНЕНТЫ: в веб-приложении: компонент «Форма заявки».",
+      "id": "component://approvalhub/component/request-form",
+      "name": "Request Form Component",
+      "parent": "component://approvalhub/container/web-app",
+      "type": "Component"
+    },
+    {
+      "description": "Component for creating, editing, and cancelling requests.",
+      "evidence": "00-description.md: КОМПОНЕНТЫ: в сервисе согласования: компонент «Заявки» (создание, редактирование, отмена).",
+      "id": "component://approvalhub/component/requests",
+      "name": "Requests Component",
+      "parent": "component://approvalhub/container/approval-service",
+      "type": "Component"
+    },
+    {
+      "description": "Component for building approval chains by amount and department.",
+      "evidence": "00-description.md: КОМПОНЕНТЫ: компонент «Маршруты согласования» (построение цепочки по сумме и подразделению).",
+      "id": "component://approvalhub/component/routes",
+      "name": "Approval Routes Component",
+      "parent": "component://approvalhub/container/approval-service",
+      "type": "Component"
+    },
+    {
+      "description": "Component responsible for dispatching emails and internal notifications.",
+      "evidence": "00-description.md: КОМПОНЕНТЫ: в сервисе уведомлений: компонент «Отправка».",
+      "id": "component://approvalhub/component/sending",
+      "name": "Notification Sending Component",
+      "parent": "component://approvalhub/container/notification-service",
+      "type": "Component"
+    },
+    {
+      "description": "Python service implementing request business logic and approval routing.",
+      "evidence": "00-description.md: КОНТЕЙНЕРЫ: сервис согласования на Python (бизнес-логика заявок и маршрутов согласования).",
+      "id": "component://approvalhub/container/approval-service",
+      "name": "Approval Service (Python)",
+      "parent": "component://approvalhub/system",
+      "type": "Container"
+    },
+    {
+      "description": "Service for sending emails and internal notifications.",
+      "evidence": "00-description.md: КОНТЕЙНЕРЫ: сервис уведомлений (рассылка писем и внутренних оповещений).",
+      "id": "component://approvalhub/container/notification-service",
+      "name": "Notification Service",
+      "parent": "component://approvalhub/system",
+      "type": "Container"
+    },
+    {
+      "description": "Primary relational database container for persistent approval data.",
+      "evidence": "00-description.md: КОНТЕЙНЕРЫ: база данных PostgreSQL.",
+      "id": "component://approvalhub/container/postgresql",
+      "name": "PostgreSQL Database",
+      "parent": "component://approvalhub/system",
+      "type": "Container"
+    },
+    {
+      "description": "Message broker for asynchronous event subscription and notification delivery.",
+      "evidence": "00-description.md: КОНТЕЙНЕРЫ: брокер сообщений RabbitMQ.",
+      "id": "component://approvalhub/container/rabbitmq",
+      "name": "RabbitMQ Broker",
+      "parent": "component://approvalhub/system",
+      "type": "Container"
+    },
+    {
+      "description": "Cache container for fast access to request lists and reference data.",
+      "evidence": "00-description.md: КОНТЕЙНЕРЫ: кэш Redis.",
+      "id": "component://approvalhub/container/redis-cache",
+      "name": "Redis Cache",
+      "parent": "component://approvalhub/system",
+      "type": "Container"
+    },
+    {
+      "description": "Scheduler container for nightly expense export to 1C.",
+      "evidence": "00-description.md: КОНТЕЙНЕРЫ: планировщик задач (nightly-выгрузка расходов в 1С).",
+      "id": "component://approvalhub/container/task-scheduler",
+      "name": "Task Scheduler",
+      "parent": "component://approvalhub/system",
+      "type": "Container"
+    },
+    {
+      "description": "React web application providing employee and manager interfaces.",
+      "evidence": "00-description.md: КОНТЕЙНЕРЫ: веб-приложение на React (интерфейс сотрудник и руководитель).",
+      "id": "component://approvalhub/container/web-app",
+      "name": "Web Application (React)",
+      "parent": "component://approvalhub/system",
+      "type": "Container"
+    },
+    {
+      "description": "Corporate approval system for employee requests, approval routing, execution, notifications, audit, and 1C expense export.",
+      "evidence": "00-description.md: Нужна корпоративная система согласования заявок (ApprovalHub).",
+      "id": "component://approvalhub/system",
+      "name": "ApprovalHub",
+      "parent": null,
+      "type": "System"
+    },
+    {
+      "description": "Amount attribute of the Request entity.",
+      "evidence": "00-description.md: ДАННЫЕ: сущности Заявка (номер, сумма, статус, автор, подразделение).",
+      "id": "data://attribute/request/amount",
+      "name": "Request Amount",
+      "parent": "data://entity/request",
+      "type": "Attribute"
+    },
+    {
+      "description": "Author attribute of the Request entity.",
+      "evidence": "00-description.md: ДАННЫЕ: сущности Заявка (номер, сумма, статус, автор, подразделение).",
+      "id": "data://attribute/request/author",
+      "name": "Request Author",
+      "parent": "data://entity/request",
+      "type": "Attribute"
+    },
+    {
+      "description": "Department attribute of the Request entity.",
+      "evidence": "00-description.md: ДАННЫЕ: сущности Заявка (номер, сумма, статус, автор, подразделение).",
+      "id": "data://attribute/request/department",
+      "name": "Request Department",
+      "parent": "data://entity/request",
+      "type": "Attribute"
+    },
+    {
+      "description": "Request number attribute of the Request entity.",
+      "evidence": "00-description.md: ДАННЫЕ: сущности Заявка (номер, сумма, статус, автор, подразделение).",
+      "id": "data://attribute/request/number",
+      "name": "Request Number",
+      "parent": "data://entity/request",
+      "type": "Attribute"
+    },
+    {
+      "description": "Status attribute of the Request entity.",
+      "evidence": "00-description.md: ДАННЫЕ: сущности Заявка (номер, сумма, статус, автор, подразделение).",
+      "id": "data://attribute/request/status",
+      "name": "Request Status",
+      "parent": "data://entity/request",
+      "type": "Attribute"
+    },
+    {
+      "description": "Approval entity representing a manager decision in the approval chain.",
+      "evidence": "00-description.md: ДАННЫЕ: сущности Согласование.",
+      "id": "data://entity/approval",
+      "name": "Approval",
+      "parent": "component://approvalhub/container/approval-service",
+      "type": "DataEntity"
+    },
+    {
+      "description": "Reference entity for organizational departments used in routing.",
+      "evidence": "00-description.md: ДАННЫЕ: сущности СправочникПодразделений.",
+      "id": "data://entity/department-reference",
+      "name": "Department Reference",
+      "parent": "component://approvalhub/container/approval-service",
+      "type": "DataEntity"
+    },
+    {
+      "description": "Employee entity representing a user who can submit or participate in approvals.",
+      "evidence": "00-description.md: ДАННЫЕ: сущности Сотрудник.",
+      "id": "data://entity/employee",
+      "name": "Employee",
+      "parent": "component://approvalhub/container/approval-service",
+      "type": "DataEntity"
+    },
+    {
+      "description": "Expense line entity used for request amounts and 1C expense export.",
+      "evidence": "00-description.md: ДАННЫЕ: сущности СтрокаРасхода.",
+      "id": "data://entity/expense-line",
+      "name": "Expense Line",
+      "parent": "component://approvalhub/container/approval-service",
+      "type": "DataEntity"
+    },
+    {
+      "description": "Request entity with number, amount, status, author, and department.",
+      "evidence": "00-description.md: ДАННЫЕ: сущности Заявка (номер, сумма, статус, автор, подразделение).",
+      "id": "data://entity/request",
+      "name": "Request",
+      "parent": "component://approvalhub/container/approval-service",
+      "type": "DataEntity"
+    },
+    {
+      "description": "In-memory cache store for fast request list access and reference data.",
+      "evidence": "00-description.md: ДАННЫЕ: хранилища: кэш.",
+      "id": "data://store/cache-store",
+      "name": "Cache Store",
+      "parent": "component://approvalhub/container/redis-cache",
+      "type": "DataStore"
+    },
+    {
+      "description": "Primary persistent data store for requests, approvals, expenses, employees, and references.",
+      "evidence": "00-description.md: ДАННЫЕ: хранилища: основная БД.",
+      "id": "data://store/main-db",
+      "name": "Main Database Store",
+      "parent": "component://approvalhub/container/postgresql",
+      "type": "DataStore"
+    },
+    {
+      "description": "Production deployment contour for ApprovalHub, comprising the internal company network with a Kubernetes production cluster and an office network.",
+      "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ",
+      "id": "deployment://environment/production",
+      "name": "Production Environment",
+      "parent": "component://approvalhub/system",
+      "type": "Environment"
+    },
+    {
+      "description": "Company internal network contour for production and office access.",
+      "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ: контур внутренняя сеть компании.",
+      "id": "deployment://internal-company-network",
+      "name": "Internal Company Network",
+      "parent": "component://approvalhub/system",
+      "type": "Node"
+    },
+    {
+      "description": "Kubernetes production cluster containing service pods and database.",
+      "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ: узел Kubernetes (прод-кластер), в нём поды сервисов и база данных.",
+      "id": "deployment://kubernetes-prod",
+      "name": "Kubernetes Production Cluster",
+      "parent": "component://approvalhub/system",
+      "type": "Node"
+    },
+    {
+      "description": "Separate office network node for web application access.",
+      "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ: отдельный узел офисной сети для веб-приложения.",
+      "id": "deployment://office-network",
+      "name": "Office Network",
+      "parent": "component://approvalhub/system",
+      "type": "Node"
+    },
+    {
+      "description": "External accounting system used for document exchange and expense export.",
+      "evidence": "00-description.md: Внешняя система 1С:Бухгалтерия — обмен документами.",
+      "id": "external://1c-accounting",
+      "name": "1C Accounting",
+      "parent": "component://approvalhub/system",
+      "type": "ExternalSystem"
+    },
+    {
+      "description": "External mail gateway used for sending notification emails.",
+      "evidence": "00-description.md: внешний почтовый шлюз — уведомления.",
+      "id": "external://mail-gateway",
+      "name": "Mail Gateway",
+      "parent": "component://approvalhub/system",
+      "type": "ExternalSystem"
+    },
+    {
+      "description": "External SSO service used for employee authentication.",
+      "evidence": "00-description.md: внешний сервис SSO (Keycloak) — вход сотрудников.",
+      "id": "external://sso-keycloak",
+      "name": "SSO Keycloak",
+      "parent": "component://approvalhub/system",
+      "type": "ExternalSystem"
+    },
+    {
+      "description": "Interface for exchanging documents with 1C Accounting system.",
+      "evidence": "00-description.md: компонент «Интеграция с 1С» (обмен документами); Внешняя система 1С:Бухгалтерия — обмен документами",
+      "id": "iface://approvalhub/1c-integration-api",
+      "name": "1C Document Exchange Interface",
+      "parent": "component://approvalhub/component/integration-1c",
+      "type": "Interface"
+    },
+    {
+      "description": "Interface for subscribing to approval and notification events in RabbitMQ.",
+      "evidence": "00-description.md: ИНТЕРФЕЙСЫ: подписка на события в брокере.",
+      "id": "iface://approvalhub/event-subscription-api",
+      "name": "Broker Event Subscription Interface",
+      "parent": "component://approvalhub/container/rabbitmq",
+      "type": "Interface"
+    },
+    {
+      "description": "REST interface for administrative operations and reference data management.",
+      "evidence": "00-description.md: ИНТЕРФЕЙСЫ: REST API администрирования.",
+      "id": "iface://approvalhub/rest-admin-api",
+      "name": "Administration REST API",
+      "parent": "component://approvalhub/container/approval-service",
+      "type": "Interface"
+    },
+    {
+      "description": "REST interface for request lifecycle operations.",
+      "evidence": "00-description.md: ИНТЕРФЕЙСЫ: REST API согласования.",
+      "id": "iface://approvalhub/rest-approval-api",
+      "name": "Approval REST API",
+      "parent": "component://approvalhub/container/approval-service",
+      "type": "Interface"
+    },
+    {
+      "description": "Interface used by the web application to authenticate employees through external SSO.",
+      "evidence": "00-description.md: внешний сервис SSO (Keycloak) — вход сотрудников.",
+      "id": "iface://approvalhub/sso-login-api",
+      "name": "SSO Login Interface",
+      "parent": "component://approvalhub/container/web-app",
+      "type": "Interface"
+    },
+    {
+      "description": "Document payload sent to 1C Accounting for expense records.",
+      "evidence": "00-description.md: процесс «Ночная выгрузка расходов в 1С»; обмен документами",
+      "id": "message://1c/expense-document-payload",
+      "name": "Expense Document Payload",
+      "parent": "iface://approvalhub/1c-integration-api",
+      "type": "Message"
+    },
+    {
+      "description": "Response payload received from 1C Accounting system.",
+      "evidence": "00-description.md: модуль разбора ответов 1С",
+      "id": "message://1c/response-payload",
+      "name": "1C Response Payload",
+      "parent": "iface://approvalhub/1c-integration-api",
+      "type": "Message"
+    },
+    {
+      "description": "Request payload for POST /requests/{id}/approve.",
+      "evidence": "00-description.md: REST API согласования (POST /requests/{id}/approve)",
+      "id": "message://rest-approval/approve-request-payload",
+      "name": "Approve Request Payload",
+      "parent": "iface://approvalhub/rest-approval-api",
+      "type": "Message"
+    },
+    {
+      "description": "Request payload for POST /requests containing request data.",
+      "evidence": "00-description.md: REST API согласования (POST /requests)",
+      "id": "message://rest-approval/create-request-payload",
+      "name": "Create Request Payload",
+      "parent": "iface://approvalhub/rest-approval-api",
+      "type": "Message"
+    },
+    {
+      "description": "Request payload for POST /requests/{id}/reject.",
+      "evidence": "00-description.md: REST API согласования (POST /requests/{id}/reject)",
+      "id": "message://rest-approval/reject-request-payload",
+      "name": "Reject Request Payload",
+      "parent": "iface://approvalhub/rest-approval-api",
+      "type": "Message"
+    },
+    {
+      "description": "Response payload for GET /requests/{id} containing request details.",
+      "evidence": "00-description.md: REST API согласования (GET /requests/{id})",
+      "id": "message://rest-approval/request-response",
+      "name": "Request Response",
+      "parent": "iface://approvalhub/rest-approval-api",
+      "type": "Message"
+    },
+    {
+      "description": "Code module parsing responses received from 1C Accounting.",
+      "evidence": "00-description.md: МОДУЛИ: в компоненте «Интеграция с 1С» — модуль разбора ответов 1С.",
+      "id": "module://integration-1c/response-parsing",
+      "name": "1C Response Parsing Module",
+      "parent": "component://approvalhub/component/integration-1c",
+      "type": "Module"
+    },
+    {
+      "description": "Code module calculating request totals from expense lines.",
+      "evidence": "00-description.md: МОДУЛИ: в компоненте «Заявки» — модуль расчёта суммы.",
+      "id": "module://requests/amount-calculation",
+      "name": "Amount Calculation Module",
+      "parent": "component://approvalhub/component/requests",
+      "type": "Module"
+    },
+    {
+      "description": "Code module validating request data before persistence or routing.",
+      "evidence": "00-description.md: МОДУЛИ: в компоненте «Заявки» — модуль валидации заявки.",
+      "id": "module://requests/validation",
+      "name": "Request Validation Module",
+      "parent": "component://approvalhub/component/requests",
+      "type": "Module"
+    },
+    {
+      "description": "Code module implementing approval routing rules by amount and department.",
+      "evidence": "00-description.md: МОДУЛИ: в компоненте «Маршруты согласования» — модуль правил маршрутизации.",
+      "id": "module://routes/routing-rules",
+      "name": "Routing Rules Module",
+      "parent": "component://approvalhub/component/routes",
+      "type": "Module"
+    },
+    {
+      "description": "Receives and parses responses from 1C Accounting system.",
+      "evidence": "00-description.md: модуль разбора ответов 1С; компонент «Интеграция с 1С» (обмен документами)",
+      "id": "operation://1c/receive-1c-response",
+      "name": "Receive 1C Response",
+      "parent": "iface://approvalhub/1c-integration-api",
+      "type": "Operation"
+    },
+    {
+      "description": "Sends expense documents to 1C Accounting during nightly export.",
+      "evidence": "00-description.md: процесс «Ночная выгрузка расходов в 1С»; компонент «Интеграция с 1С» (обмен документами)",
+      "id": "operation://1c/send-expense-document",
+      "name": "Send Expense Document to 1C",
+      "parent": "iface://approvalhub/1c-integration-api",
+      "type": "Operation"
+    },
+    {
+      "description": "Operation for subscribing consumers to approval and notification events.",
+      "evidence": "00-description.md: ИНТЕРФЕЙСЫ: подписка на события в брокере.",
+      "id": "operation://event-subscription/subscribe-events",
+      "name": "Subscribe to Events",
+      "parent": "iface://approvalhub/event-subscription-api",
+      "type": "Operation"
+    },
+    {
+      "description": "Administrative operation for managing reference data such as departments.",
+      "evidence": "00-description.md: ИНТЕРФЕЙСЫ: REST API администрирования; администратор управляет справочниками.",
+      "id": "operation://rest-admin/manage-reference-data",
+      "name": "Manage Reference Data",
+      "parent": "iface://approvalhub/rest-admin-api",
+      "type": "Operation"
+    },
+    {
+      "description": "POST /requests/{id}/approve operation for approving a request.",
+      "evidence": "00-description.md: ИНТЕРФЕЙСЫ: POST /requests/{id}/approve.",
+      "id": "operation://rest-approval/approve-request",
+      "name": "Approve Request",
+      "parent": "iface://approvalhub/rest-approval-api",
+      "type": "Operation"
+    },
+    {
+      "description": "POST /requests operation for creating a new request.",
+      "evidence": "00-description.md: ИНТЕРФЕЙСЫ: POST /requests.",
+      "id": "operation://rest-approval/create-request",
+      "name": "Create Request",
+      "parent": "iface://approvalhub/rest-approval-api",
+      "type": "Operation"
+    },
+    {
+      "description": "GET /requests/{id} operation for retrieving a request by identifier.",
+      "evidence": "00-description.md: ИНТЕРФЕЙСЫ: GET /requests/{id}.",
+      "id": "operation://rest-approval/get-request",
+      "name": "Get Request",
+      "parent": "iface://approvalhub/rest-approval-api",
+      "type": "Operation"
+    },
+    {
+      "description": "POST /requests/{id}/reject operation for rejecting a request.",
+      "evidence": "00-description.md: ИНТЕРФЕЙСЫ: POST /requests/{id}/reject.",
+      "id": "operation://rest-approval/reject-request",
+      "name": "Reject Request",
+      "parent": "iface://approvalhub/rest-approval-api",
+      "type": "Operation"
+    },
+    {
+      "description": "Operation for employee authentication through SSO.",
+      "evidence": "00-description.md: внешний сервис SSO (Keycloak) — вход сотрудников.",
+      "id": "operation://sso-login/login",
+      "name": "Employee Login",
+      "parent": "iface://approvalhub/sso-login-api",
+      "type": "Operation"
+    },
+    {
+      "description": "Lane for the accountant who executes requests.",
+      "evidence": "00-description.md: ЛЮДИ И ВНЕШНИЕ СИСТЕМЫ: бухгалтер (исполняет и ведёт расходы); ПРОЦЕССЫ: процесс «Согласование заявки» (... исполнение бухгалтерией).",
+      "id": "participant://approval-request/accountant",
+      "name": "Accountant Participant",
+      "parent": "process://approval-request",
+      "type": "Participant"
+    },
+    {
+      "description": "Lane for the approval service performing permission checks and route construction.",
+      "evidence": "00-description.md: КОНТЕЙНЕРЫ: сервис согласования на Python (бизнес-логика заявок и маршрутов согласования); ПРОЦЕССЫ: процесс «Согласование заявки» (подача, проверка прав, маршрут...).",
+      "id": "participant://approval-request/approval-service",
+      "name": "Approval Service Participant",
+      "parent": "process://approval-request",
+      "type": "Participant"
+    },
+    {
+      "description": "Lane for the employee who submits requests.",
+      "evidence": "00-description.md: ЛЮДИ И ВНЕШНИЕ СИСТЕМЫ: сотрудник (подаёт заявки); ПРОЦЕССЫ: процесс «Согласование заявки» (подача...).",
+      "id": "participant://approval-request/employee",
+      "name": "Employee Participant",
+      "parent": "process://approval-request",
+      "type": "Participant"
+    },
+    {
+      "description": "Lane for the manager who approves requests.",
+      "evidence": "00-description.md: ЛЮДИ И ВНЕШНИЕ СИСТЕМЫ: руководитель (согласует); ПРОЦЕССЫ: процесс «Согласование заявки» (... согласование руководителем...).",
+      "id": "participant://approval-request/manager",
+      "name": "Manager Participant",
+      "parent": "process://approval-request",
+      "type": "Participant"
+    },
+    {
+      "description": "Lane for external 1C receiving exported expense documents.",
+      "evidence": "00-description.md: Внешняя система 1С:Бухгалтерия — обмен документами; ПРОЦЕССЫ: процесс «Ночная выгрузка расходов в 1С».",
+      "id": "participant://nightly-export/1c-accounting",
+      "name": "1C Accounting Participant",
+      "parent": "process://nightly-expense-export",
+      "type": "Participant"
+    },
+    {
+      "description": "Lane for the scheduler that triggers nightly expense export.",
+      "evidence": "00-description.md: КОНТЕЙНЕРЫ: планировщик задач (nightly-выгрузка расходов в 1С); ПРОЦЕССЫ: процесс «Ночная выгрузка расходов в 1С».",
+      "id": "participant://nightly-export/task-scheduler",
+      "name": "Task Scheduler Participant",
+      "parent": "process://nightly-expense-export",
+      "type": "Participant"
+    },
+    {
+      "description": "End-to-end process for submitting, checking rights, routing, approving, and executing a request.",
+      "evidence": "00-description.md: ПРОЦЕССЫ: процесс «Согласование заявки».",
+      "id": "process://approval-request",
+      "name": "Request Approval Process",
+      "parent": "component://approvalhub/system",
+      "type": "Process"
+    },
+    {
+      "description": "Scheduled process exporting expenses to 1C once per day.",
+      "evidence": "00-description.md: ПРОЦЕССЫ: процесс «Ночная выгрузка расходов в 1С».",
+      "id": "process://nightly-expense-export",
+      "name": "Nightly Expense Export Process",
+      "parent": "component://approvalhub/system",
+      "type": "Process"
+    },
+    {
+      "description": "Design constraint that a request cannot be changed after approval.",
+      "evidence": "00-description.md: ТРЕБОВАНИЯ: заявку нельзя изменить после согласования.",
+      "id": "quality://constraint/no-change-after-approval",
+      "name": "No Change After Approval Constraint",
+      "parent": "component://approvalhub/system",
+      "type": "Constraint"
+    },
+    {
+      "description": "Requirement that all actions are recorded in the audit journal.",
+      "evidence": "00-description.md: ТРЕБОВАНИЯ: все действия фиксируются в журнале аудита.",
+      "id": "quality://req/audit-all-actions",
+      "name": "Audit All Actions Requirement",
+      "parent": "component://approvalhub/system",
+      "type": "Requirement"
+    },
+    {
+      "description": "Requirement that expenses are exported to 1C once per day.",
+      "evidence": "00-description.md: ТРЕБОВАНИЯ: выгрузка расходов в 1С раз в сутки.",
+      "id": "quality://req/daily-export-to-1c",
+      "name": "Daily 1C Export Requirement",
+      "parent": "component://approvalhub/system",
+      "type": "Requirement"
+    },
+    {
+      "description": "Requirement that notifications are delivered by email.",
+      "evidence": "00-description.md: ТРЕБОВАНИЯ: уведомления приходят на почту.",
+      "id": "quality://req/email-notifications",
+      "name": "Email Notifications Requirement",
+      "parent": "component://approvalhub/system",
+      "type": "Requirement"
+    },
+    {
+      "description": "Service level objective that approval completes within two working days.",
+      "evidence": "00-description.md: ТРЕБОВАНИЯ: согласование не дольше двух рабочих дней.",
+      "id": "quality://slo/approval-two-working-days",
+      "name": "Approval Duration SLO",
+      "parent": "component://approvalhub/system",
+      "type": "SLO"
+    },
+    {
+      "description": "Service level objective that request list response time is no more than 500 ms.",
+      "evidence": "00-description.md: ТРЕБОВАНИЯ: время отклика списка заявок не более 500 мс.",
+      "id": "quality://slo/list-response-500ms",
+      "name": "Request List Response Time SLO",
+      "parent": "component://approvalhub/system",
+      "type": "SLO"
+    },
+    {
+      "description": "Schema defining the structure of expense documents exchanged with 1C.",
+      "evidence": "00-description.md: сущности СтрокаРасхода; процесс «Ночная выгрузка расходов в 1С»",
+      "id": "schema://expense-document-schema",
+      "name": "Expense Document Schema",
+      "parent": "data://entity/expense-line",
+      "type": "SchemaRef"
+    },
+    {
+      "description": "Schema defining the structure of request payloads in REST API messages.",
+      "evidence": "00-description.md: сущности Заявка (номер, сумма, статус, автор, подразделение); REST API согласования",
+      "id": "schema://request-payload-schema",
+      "name": "Request Payload Schema",
+      "parent": "data://entity/request",
+      "type": "SchemaRef"
+    },
+    {
+      "description": "Accountant executes the approved request and maintains expenses.",
+      "evidence": "00-description.md: ПРОЦЕССЫ: процесс «Согласование заявки» (... исполнение бухгалтерией).",
+      "id": "task://approval-request/accountant/execute",
+      "name": "Accountant Executes Request",
+      "parent": "activity://approval-request/accountant-execution",
+      "type": "Task"
+    },
+    {
+      "description": "Approval service builds the approval chain based on amount and department.",
+      "evidence": "00-description.md: КОМПОНЕНТЫ: компонент «Маршруты согласования» (построение цепочки по сумме и подразделению); ПРОЦЕССЫ: процесс «Согласование заявки» (... маршрут...).",
+      "id": "task://approval-request/approval-service/build-route",
+      "name": "Approval Service Builds Route",
+      "parent": "activity://approval-request/build-route",
+      "type": "Task"
+    },
+    {
+      "description": "Approval service verifies that the actor is allowed to perform the action.",
+      "evidence": "00-description.md: ПРОЦЕССЫ: процесс «Согласование заявки» (подача, проверка прав...).",
+      "id": "task://approval-request/approval-service/check-permissions",
+      "name": "Approval Service Checks Permissions",
+      "parent": "activity://approval-request/check-permissions",
+      "type": "Task"
+    },
+    {
+      "description": "Employee creates and submits a request for approval.",
+      "evidence": "00-description.md: ПРОЦЕССЫ: процесс «Согласование заявки» (подача...).",
+      "id": "task://approval-request/employee/submit",
+      "name": "Employee Submits Request",
+      "parent": "activity://approval-request/submit",
+      "type": "Task"
+    },
+    {
+      "description": "Manager approves the request in the approval route.",
+      "evidence": "00-description.md: ПРОЦЕССЫ: процесс «Согласование заявки» (... согласование руководителем...).",
+      "id": "task://approval-request/manager/approve",
+      "name": "Manager Approves Request",
+      "parent": "activity://approval-request/manager-approval",
+      "type": "Task"
+    },
+    {
+      "description": "External 1C receives exported expense documents.",
+      "evidence": "00-description.md: Внешняя система 1С:Бухгалтерия — обмен документами; ПРОЦЕССЫ: процесс «Ночная выгрузка расходов в 1С».",
+      "id": "task://nightly-export/1c-accounting/receive-documents",
+      "name": "1C Receives Expense Documents",
+      "parent": "activity://nightly-export/export-to-1c",
+      "type": "Task"
+    },
+    {
+      "description": "Nightly scheduler starts export of expenses to 1C.",
+      "evidence": "00-description.md: КОНТЕЙНЕРЫ: планировщик задач (nightly-выгрузка расходов в 1С); ПРОЦЕССЫ: процесс «Ночная выгрузка расходов в 1С».",
+      "id": "task://nightly-export/task-scheduler/run-export",
+      "name": "Scheduler Runs Expense Export",
+      "parent": "activity://nightly-export/export-to-1c",
+      "type": "Task"
+    }
+  ]
+}

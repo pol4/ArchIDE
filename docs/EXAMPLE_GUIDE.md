@@ -31,6 +31,38 @@ coverage: levels L1 1, L2 7, L3 11, L4 4 · aspects access 13, aggregation 1, be
 
 ![Дерево сущностей: система → контейнеры → компоненты → модули](screens/27-example-tree.png)
 
+## Диаграммы всех аспектов
+
+Модель — не одна картинка, а десять представлений. Подзакладки канваса показывают
+**свой аспект для выбранного элемента**: в примере это состояния заявки, процесс
+согласования, данные, интерфейсы, развёртывание, доступ и требования.
+
+![Состояния заявки](screens/30-example-states.png)
+
+![Процесс согласования](screens/31-example-process.png)
+
+![Данные](screens/32-example-data.png)
+
+![Интерфейсы](screens/33-example-interfaces.png)
+
+![Развёртывание](screens/34-example-deployment.png)
+
+![Доступ: роли и права](screens/35-example-access.png)
+
+![Требования и качество](screens/36-example-quality.png)
+
+## Готовый пример в поставке
+
+Модель лежит в репозитории: `archide-poc/data/examples/ApprovalHub.json` — её можно
+открыть локально (скопировать в `data/models/`) или загрузить в работающую систему:
+
+```bash
+kubectl -n t-archide-app cp archide-poc/data/examples/ApprovalHub.json \
+  $(kubectl -n t-archide-app get pod -l app=archide -o jsonpath='{.items[0].metadata.name}'):/data/models/
+```
+
+После этого модель `ApprovalHub` появляется в списке панели **Projects**.
+
 ## Часть A. Разработка: синтез из описания
 
 ### A1. Постановка
