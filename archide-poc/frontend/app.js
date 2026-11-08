@@ -2881,8 +2881,10 @@ function rSequence(aspect, graph, nodes) {
   names.forEach(([id], i) => {
     const x = PAD + i * COL + COL / 2;
     xOf.set(id, x);
+    const own = ops.get(id) || [];
+    const detail = own.length ? `${own.length} op: ${own.slice(0, 2).join(", ")}` : "";
     const box = awinBox(svg, PAD + i * COL + 8, PAD, COL - 16, HEAD, "#2f81f7",
-      labels.get(id), (ops.get(id) || []).length ? `${(ops.get(id) || []).length} op` : "");
+      labels.get(id), detail);
     svg.appendChild(svgEl("line", { x1: x, y1: box + 4, x2: x, y2: height - 20,
       stroke: "#8b949e", "stroke-width": 1, "stroke-dasharray": "4 4", class: "seq-lifeline" }));
   });
@@ -2894,8 +2896,16 @@ function rSequence(aspect, graph, nodes) {
     const y = PAD + 70 + ROW + i * STEP;
     const x1 = xOf.get(edge.source), x2 = xOf.get(edge.target);
     if (x1 === undefined || x2 === undefined) return;
-    const line = svgEl("line", { x1, y1: y, x2, y2: y, stroke: "#2f81f7", "stroke-width": 1.4,
-      "marker-end": `url(#${svg.dataset.marker})` });
+    let line;
+    if (x1 === x2) {
+      // вызов самого себя — петля, иначе линия нулевой длины не видна
+      line = svgEl("path", { d: `M${x1},${y} h40 v14 h-40`,
+        fill: "none", stroke: "#2f81f7", "stroke-width": 1.4,
+        "marker-end": `url(#${svg.dataset.marker})` });
+    } else {
+      line = svgEl("line", { x1, y1: y, x2, y2: y, stroke: "#2f81f7", "stroke-width": 1.4,
+        "marker-end": `url(#${svg.dataset.marker})` });
+    }
     line.setAttribute("class", "seq-msg");
     svg.appendChild(line);
     const t = awinText(svg, (x1 + x2) / 2, y - 4, `${i + 1}. ${label(edge)}`, "edge-label", "middle");
@@ -3795,6 +3805,28 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
 
   applyLayoutPositions(pos);   // a saved arrangement wins over the computed one
 
+  // Границы групп: вокруг детей рисуем рамку с именем родителя — как подграфы
+  // (namespace/container boundaries) в C4-диаграммах. Внешние группы рисуются
+  // раньше, поэтому внутренние оказываются выше слоем.
+  const boundaryBoxes = [];
+  visNodes.forEach((node) => {
+    const kids = (view.kids.get(node.id) || []).filter((k) => pos.has(k.id));
+    if (!kids.length) return;
+    const xs = kids.map((k) => pos.get(k.id));
+    boundaryBoxes.push({
+      node,
+      x1: Math.min(...xs.map((q) => q.x)),
+      y1: Math.min(...xs.map((q) => q.y)),
+      x2: Math.max(...xs.map((q) => q.x + q.w)),
+      y2: Math.max(...xs.map((q) => q.y + q.h)),
+      size: kids.length,
+    });
+  });
+  boundaryBoxes.sort((a, b) => b.size - a.size);
+  boundaryBoxes.forEach((b) => {
+    b.x1 -= 16; b.y1 -= 34; b.x2 += 16; b.y2 += 16;
+  });
+
   const totalW = LABEL_W + maxRowWidth + PAD * 2;
   const totalH = rows.length * (NH + GY) - GY + PAD * 2 + 30;
 
@@ -3838,6 +3870,28 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
       viewport.appendChild(rowLabel);
     });
   }
+
+  const boundaryLayer = document.createElementNS(NS, "g");
+  boundaryBoxes.forEach(({ node, x1, y1, x2, y2 }) => {
+    const g = document.createElementNS(NS, "g");
+    g.setAttribute("class", "boundary");
+    const rect = document.createElementNS(NS, "rect");
+    rect.setAttribute("class", "boundary-box");
+    rect.setAttribute("x", x1); rect.setAttribute("y", y1);
+    rect.setAttribute("width", Math.max(40, x2 - x1));
+    rect.setAttribute("height", Math.max(30, y2 - y1));
+    rect.setAttribute("rx", 10);
+    g.appendChild(rect);
+    const label = document.createElementNS(NS, "text");
+    label.setAttribute("class", "boundary-label");
+    label.setAttribute("x", x1 + 10);
+    label.setAttribute("y", y1 + 13);
+    const kindLabel = C4_KIND_LABEL[c4Kind(node.type)] || node.type || "";
+    label.textContent = `${node.name || node.id}${kindLabel ? " [" + kindLabel + "]" : ""}`;
+    g.appendChild(label);
+    boundaryLayer.appendChild(g);
+  });
+  viewport.appendChild(boundaryLayer);
 
   const visible = new Set(visNodes.map((x) => x.id));
   // edge labels live in their own layer, moved above the nodes once they exist,

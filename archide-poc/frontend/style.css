@@ -237,6 +237,10 @@ button.secondary { background: var(--panel); color: var(--text); margin-top: 4px
 .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 
 /* UI: the canvas row holds the collapsible C4 tree, its drag handle and the canvas */
+/* границы групп (подграфы): рамка вокруг детей контейнера */
+.boundary-box { fill: none; stroke: var(--line); stroke-dasharray: 7 5; opacity: 0.85; }
+.boundary-label { fill: var(--muted); font: 600 11px ui-monospace, Menlo, monospace; }
+
 .canvas-row { display: flex; flex: 1; min-height: 0; min-width: 0; }
 .canvas-row.hidden { display: none; }
 

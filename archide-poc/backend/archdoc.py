@@ -186,6 +186,18 @@ def build(model_name: str, graph: dict, meta: dict | None = None) -> dict:
         parts.append("")
         sections.append("Risks and gaps")
 
+    # ---- 5c. decisions and assumptions -------------------------------------
+    decisions = [n for n in nodes if n.get("type") in ("Policy", "Constraint", "NFR", "SLO", "Requirement")]
+    if decisions:
+        parts.append("## 5c. Decisions and assumptions\n")
+        parts.append("Правила, ограничения и допущения, зафиксированные в модели "
+                     "(архитектурные решения и предпосылки).\n")
+        parts.append(_table([[n.get("name") or n["id"], n.get("type"),
+                              _esc(n.get("description") or ""), _evidence(n)]
+                             for n in decisions[:60]],
+                            ["Формулировка", "Тип", "Описание", "Источник"]) + "\n")
+        sections.append("Decisions and assumptions")
+
     # ---- 6. traceability ---------------------------------------------------
     parts.append("## 6. Traceability\n")
     with_evidence = sum(1 for n in nodes if n.get("evidence"))

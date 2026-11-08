@@ -2307,6 +2307,14 @@ async function runC4Notation(browser) {
     widths: [...document.querySelectorAll('#canvas path.edge-line')].map((p) => Number(p.getAttribute('stroke-width') || 0)),
     labelsE: [...document.querySelectorAll('#canvas text.edge-label')].map((t) => t.textContent),
   }));
+  // группы: вокруг детей контейнера рисуется граница с его именем (как subgraph)
+  const bounds = await page.evaluate(() => [...document.querySelectorAll('#canvas g.boundary')]
+    .map((g) => ({ label: (g.querySelector('text') || {}).textContent || '',
+                   has: !!g.querySelector('rect.boundary-box') })));
+  check('C4: у контейнера есть граница группы с его именем',
+    bounds.length >= 1 && bounds.every((b) => b.has) && bounds.some((b) => /web/i.test(b.label)),
+    JSON.stringify(bounds).slice(0, 200));
+
   // стандартная палитра C4: элементы — залитые блоки с белым/чёрным текстом
   const palette = await page.evaluate(() => {
     const out = {};
