@@ -1421,6 +1421,48 @@ def main() -> int:
                                                 "about": {"run": "r-1"}})
     check("Ф6.2 an unknown signal is rejected", st_fc == 400, f"{st_fc} {bad2}")
 
+    # --- описание аспектов для архитектора --------------------------------
+    from backend import archdoc as archdoc_mod  # noqa: E402
+
+    demo_graph = {"nodes": [
+        {"id": "system://d", "type": "System", "name": "Demo", "parent": None, "evidence": ["x"]},
+        {"id": "container://d/api", "type": "Container", "name": "API", "parent": "system://d", "evidence": ["x"]},
+        {"id": "data://d/order", "type": "DataEntity", "name": "Order", "parent": "container://d/api", "evidence": ["x"]},
+        {"id": "data://d/item", "type": "DataEntity", "name": "Item", "parent": "container://d/api", "evidence": ["x"]},
+        {"id": "iface://d/http", "type": "Interface", "name": "HTTP API", "parent": "container://d/api", "evidence": ["x"]},
+        {"id": "process://d/approve", "type": "Process", "name": "Approval", "parent": "system://d", "evidence": ["x"]},
+        {"id": "activity://d/submit", "type": "Activity", "name": "Submit", "parent": "process://d/approve", "evidence": ["x"]},
+    ], "edges": [
+        {"source": "container://d/api", "target": "data://d/order", "type": "reads"},
+        {"source": "container://d/api", "target": "data://d/item", "type": "writes"},
+    ]}
+    summary = archdoc_mod.aspect_summary(demo_graph, "data")
+    check("описание аспекта: счётчики и типы",
+          summary["count"] == 2 and summary["by_type"].get("DataEntity") == 2,
+          json.dumps(summary)[:200])
+    check("описание аспекта: текст для архитектора",
+          len(summary.get("summary") or "") > 40
+          and "DataEntity" in summary["summary"]
+          and "2" in summary["summary"],
+          (summary.get("summary") or "")[:200])
+    check("описание аспекта: связи с другими аспектами учтены",
+          summary.get("cross_links", 0) >= 1, json.dumps(summary)[:200])
+
+    doc = archdoc_mod.build("Demo", demo_graph)
+    md = doc["markdown"]
+    check("документация: у аспекта есть текстовое описание",
+          "### Data" in md and "DataEntity" in md and "element(s)" in md,
+          md[md.find("### Data"):md.find("### Data") + 200] if "### Data" in md else md[:200])
+    check("документация: есть разделы «сценарии» и «риски»",
+          "## " in md and ("Scenario" in md or "Сценар" in md) and ("Risk" in md or "Риск" in md),
+          " | ".join(l for l in md.splitlines() if l.startswith("## "))[:200])
+
+    req("PUT", "/api/models/Demo", {"graph": demo_graph})
+    st_as, asum = req("GET", "/api/models/Demo/aspects/data")
+    check("API: описание аспекта доступно архитектору",
+          st_as == 200 and (asum.get("summary") or "") and asum.get("count") == 2,
+          f"{st_as} {json.dumps(asum)[:160]}")
+
     # --- синтез: полнота уровней C4 и аспектов ----------------------------
     from backend import prompt as prompt_mod  # noqa: E402
     from backend import config as config_mod  # noqa: E402

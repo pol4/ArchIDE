@@ -14,6 +14,7 @@ import json
 import mimetypes
 import os
 import re
+import re
 import subprocess
 import uuid
 import time
@@ -310,6 +311,16 @@ class Handler(BaseHTTPRequestHandler):
             if doc is None:
                 return self._json(404, {"detail": "unknown document"})
             return self._json(200, doc)
+        match_aspect = re.match(r"^/api/models/([A-Za-z0-9._-]+)/aspects/([a-z]+)$", route)
+        if match_aspect:
+            model = model_store.load_model(config_mod.MODELS_DIR, match_aspect.group(1))
+            if model is None:
+                return self._json(404, {"detail": "unknown model"})
+            aspect = match_aspect.group(2)
+            if aspect not in metamodel.ASPECTS:
+                return self._json(404, {"detail": f"unknown aspect `{aspect}`"})
+            return self._json(200, archdoc.aspect_summary(model, aspect))
+
         if route == "/api/templates":
             return self._json(200, {"templates": templates_mod.catalog()})
 

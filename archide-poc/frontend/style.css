@@ -240,6 +240,16 @@ button.secondary { background: var(--panel); color: var(--text); margin-top: 4px
 .canvas-row { display: flex; flex: 1; min-height: 0; min-width: 0; }
 .canvas-row.hidden { display: none; }
 
+/* текстовое описание аспекта: диаграмма без подписи непонятна архитектору */
+.aspect-note {
+  border-bottom: 1px solid var(--line); background: var(--panel);
+  padding: 7px 12px; font-size: 12px; line-height: 1.45; flex: 0 0 auto;
+}
+.aspect-note.hidden { display: none; }
+.aspect-note-head b { color: var(--accent); margin-right: 6px; }
+.aspect-note-head span { color: var(--text); }
+.canvas-row.hidden { display: none; }
+
 .c4-tree {
   width: 230px; flex: 0 0 auto; display: flex; flex-direction: column;
   border-right: 1px solid var(--line); background: var(--panel);

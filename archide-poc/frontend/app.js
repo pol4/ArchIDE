@@ -4169,6 +4169,23 @@ function syncViewTabs() {
   });
 }
 
+async function showAspectNote(aspect) {
+  const box = $("aspect-note");
+  if (!box) return;
+  if (!aspect || aspect === "c4" || !state.modelName) {
+    box.classList.add("hidden");
+    return;
+  }
+  try {
+    const info = await api(`/api/models/${encodeURIComponent(state.modelName)}/aspects/${aspect}`);
+    $("aspect-note-title").textContent = `${info.title}:`;
+    $("aspect-note-text").textContent = info.summary || "";
+    box.classList.remove("hidden");
+  } catch (e) {
+    box.classList.add("hidden");
+  }
+}
+
 function setView(name) {
   if (!VIEW_TABS.includes(name)) return;
   state.view = name;
@@ -4183,6 +4200,7 @@ function setView(name) {
   }
   syncViewTabs();
   render();
+  showAspectNote(name);
   setStatus(name === "c4" ? "view: C4" : `view: ${name}`, "ok");
 }
 

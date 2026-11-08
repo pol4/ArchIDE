@@ -2400,6 +2400,17 @@ async function runC4Notation(browser) {
     emptyView.boxes === 0 && emptyView.shown && /process/.test(emptyView.hint),
     JSON.stringify(emptyView).slice(0, 160));
 
+  // описание аспекта: у архитектора есть текст к диаграмме
+  const note = await page.evaluate(() => {
+    const box = document.getElementById('aspect-note');
+    return { hidden: box ? box.classList.contains('hidden') : true,
+             title: (document.getElementById('aspect-note-title') || {}).textContent || '',
+             text: (document.getElementById('aspect-note-text') || {}).textContent || '' };
+  });
+  check('UI: у диаграммы аспекта есть текстовое описание',
+    note.hidden === false && note.title.length > 2 && note.text.length > 30,
+    JSON.stringify(note).slice(0, 200));
+
   // the deployment sub-tab draws deployment nodes with a double border
   await clickChip(page, 'deployment');
   await sleep(600);

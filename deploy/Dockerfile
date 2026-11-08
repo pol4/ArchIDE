@@ -39,8 +39,10 @@ COPY archide-poc/frontend /app/frontend
 COPY archide-poc/agents /app/agents
 COPY archide-poc/requirements.txt /app/
 
-# the seed agent manifest (the rest of /data is runtime state on a volume)
+# the seed agent manifest and the shipped example models (the rest of /data is
+# runtime state on a volume)
 COPY archide-poc/data/agents.json /app/data/agents.json
+COPY archide-poc/data/examples /app/data/examples
 
 COPY deploy/entrypoint.sh /usr/local/bin/archide-entrypoint
 RUN chmod +x /usr/local/bin/archide-entrypoint \

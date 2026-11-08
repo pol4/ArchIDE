@@ -131,6 +131,7 @@ def build(model_name: str, graph: dict, meta: dict | None = None) -> dict:
     for aspect in [a for a in ASPECT_TITLES if a in by_aspect]:
         items = by_aspect[aspect]
         parts.append(f"### {ASPECT_TITLES.get(aspect, aspect)} ({len(items)})\n")
+        parts.append(aspect_summary(graph, aspect)["summary"] + "\n")
         parts.append(_table([[n.get("name") or n["id"], n.get("type"), _esc(n.get("description") or ""),
                               _source_of(n), _evidence(n)] for n in items[:200]],
                             ["Название", "Тип", "Описание", "Источник", "Evidence"]) + "\n")
@@ -164,6 +165,27 @@ def build(model_name: str, graph: dict, meta: dict | None = None) -> dict:
         parts.append(_table(rows, ["Требование", "Тип", "Формулировка", "Источник"]) + "\n")
         sections.append("Requirements")
 
+    # ---- 5a. scenarios -----------------------------------------------------
+    scenarios = scenario_summary(graph)
+    if scenarios:
+        parts.append("## 5a. Scenarios\n")
+        parts.append("Сценарии выведены из процессов и активностей модели.\n")
+        for sc in scenarios[:20]:
+            parts.append(f"- **{sc['name']}** — {_esc(sc['description']) or 'без описания'}"
+                         + (f"; шаги: {', '.join(sc['steps'][:8])}" if sc["steps"] else ""))
+        parts.append("")
+        sections.append("Scenarios")
+
+    # ---- 5b. risks and gaps ------------------------------------------------
+    risks = risk_summary(graph)
+    if risks:
+        parts.append("## 5b. Risks and gaps\n")
+        parts.append("Ограничения и пробелы модели — то, что стоит закрыть до приёмки.\n")
+        for line in risks:
+            parts.append(f"- {line}")
+        parts.append("")
+        sections.append("Risks and gaps")
+
     # ---- 6. traceability ---------------------------------------------------
     parts.append("## 6. Traceability\n")
     with_evidence = sum(1 for n in nodes if n.get("evidence"))
@@ -174,3 +196,102 @@ def build(model_name: str, graph: dict, meta: dict | None = None) -> dict:
     markdown = "\n".join(parts)
     return {"model": model_name, "markdown": markdown, "sections": sections,
             "nodes": len(nodes), "edges": len(edges)}
+
+# ---------------------------------------------------------------------------
+# Текстовое описание аспекта: диаграмма без подписи непонятна архитектору
+# ---------------------------------------------------------------------------
+def aspect_summary(graph: dict, aspect: str) -> dict:
+    """Что содержит аспект, из чего состоит и как связан с остальной моделью."""
+    nodes = _nodes(graph)
+    edges = [_ for _ in (graph.get("edges") or []) if _]
+    items = [n for n in nodes if _aspect_of(n) == aspect]
+    ids = {n["id"] for n in items}
+    by_type: dict[str, int] = {}
+    for node in items:
+        by_type[str(node.get("type"))] = by_type.get(str(node.get("type")), 0) + 1
+
+    linked: dict[str, int] = {}
+    internal = 0
+    cross = 0
+    cross_kinds: dict[str, int] = {}
+    for edge in edges:
+        src, dst = edge.get("source"), edge.get("target")
+        if src in ids and dst in ids:
+            internal += 1
+        elif src in ids or dst in ids:
+            cross += 1
+            cross_kinds[str(edge.get("type"))] = cross_kinds.get(str(edge.get("type")), 0) + 1
+        if src in ids:
+            linked[src] = linked.get(src, 0) + 1
+        if dst in ids:
+            linked[dst] = linked.get(dst, 0) + 1
+
+    key = [name for name, _ in
+           sorted(((n.get("name") or n["id"], linked.get(n["id"], 0)) for n in items),
+                  key=lambda pair: -pair[1])[:5]]
+    lonely = [n.get("name") or n["id"] for n in items if not linked.get(n["id"])]
+
+    title = ASPECT_TITLES.get(aspect, aspect)
+    types_text = ", ".join(f"{count} {name}" for name, count in
+                           sorted(by_type.items(), key=lambda pair: -pair[1]))
+    parts = [f"{title}: {len(items)} element(s) — {types_text}." if items
+             else f"{title}: элементов нет — аспект в модели не представлен."]
+    if key:
+        parts.append("Ключевые элементы: " + ", ".join(key) + ".")
+    if internal or cross:
+        parts.append(f"Связей внутри аспекта — {internal}, с другими аспектами — {cross}"
+                     + (f" ({', '.join(sorted(cross_kinds))})" if cross_kinds else "") + ".")
+    if lonely:
+        parts.append(f"Без связей: {len(lonely)} — {', '.join(lonely[:5])}"
+                     + (" …" if len(lonely) > 5 else "") + ".")
+    return {"aspect": aspect, "title": title, "count": len(items), "by_type": by_type,
+            "key_elements": key, "internal_links": internal, "cross_links": cross,
+            "cross_kinds": cross_kinds, "unlinked": lonely,
+            "summary": " ".join(parts)}
+
+
+def scenario_summary(graph: dict) -> list[dict]:
+    """Сценарии использования, выведенные из процессов модели."""
+    out = []
+    for node in _nodes(graph):
+        if node.get("type") not in ("Process", "Activity"):
+            continue
+        steps = [n.get("name") or n["id"] for n in _nodes(graph)
+                 if n.get("parent") == node["id"] and n.get("type") in ("Activity", "Task")]
+        out.append({"id": node["id"], "name": node.get("name") or node["id"],
+                    "description": node.get("description") or "", "steps": steps})
+    return out
+
+
+def risk_summary(graph: dict) -> list[str]:
+    """Ограничения и пробелы: то, что архитектору нужно видеть до приёмки."""
+    out: list[str] = []
+    try:
+        from . import merge as merge_mod
+        cov = merge_mod.coverage_report(graph)
+    except Exception:  # noqa: BLE001
+        cov = None
+    nodes = _nodes(graph)
+    ids = {n["id"] for n in nodes}
+    linked: set[str] = set()
+    for edge in (graph.get("edges") or []):
+        if not edge:
+            continue
+        if edge.get("source") in ids:
+            linked.add(edge["source"])
+        if edge.get("target") in ids:
+            linked.add(edge["target"])
+    lonely = [n.get("name") or n["id"] for n in nodes if n["id"] not in linked and n.get("parent")]
+    if lonely:
+        out.append(f"Элементы без связей: {len(lonely)} — {', '.join(lonely[:6])}"
+                   + (" …" if len(lonely) > 6 else ""))
+    if cov:
+        if cov["missing_levels"]:
+            out.append("Не заполнены уровни C4: " + ", ".join(cov["missing_levels"]))
+        if cov["missing_aspects"]:
+            out.append("Не представлены аспекты: " + ", ".join(cov["missing_aspects"]))
+    requirements = [n for n in nodes if n.get("type") in ("Requirement", "NFR", "SLO", "Constraint")]
+    if requirements:
+        out.append(f"Требований и ограничений в модели: {len(requirements)} — их покрытие "
+                   "проверяется отдельной командой приёмки")
+    return out
