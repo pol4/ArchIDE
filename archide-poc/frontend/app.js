@@ -3838,20 +3838,25 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
     });
   };
   if (state.groupMode === "deployment") {
-    // группировка по развёртыванию: рамка вокруг элементов одного узла
+    // Группировка по развёртыванию. Связи deployed_on берём из ПОЛНОЙ модели:
+    // узлы развёртывания обычно не отрисованы на текущем уровне, и по видимым
+    // связям группировка не построилась бы вовсе.
+    const full = state.fullGraph || state.graph || {};
+    const fullById = new Map((full.nodes || []).map((n) => [n.id, n]));
     const byNode = new Map();
-    (view.edges || []).forEach((e) => {
-      if (e.type !== "deployed_on" || !pos.has(e.source) || !pos.has(e.target)) return;
+    (full.edges || []).forEach((e) => {
+      if (!e || e.type !== "deployed_on") return;
+      if (!pos.has(e.source) || !fullById.has(e.target)) return;
       if (!byNode.has(e.target)) byNode.set(e.target, []);
-      byNode.get(e.target).push(view.byId.get(e.source));
+      byNode.get(e.target).push(fullById.get(e.source));
     });
     byNode.forEach((members, nodeId) => {
-      const node = view.byId.get(nodeId);
-      if (node) addBoundary(node, members.filter(Boolean));
+      const node = fullById.get(nodeId);
+      if (node) addBoundary(node, members);
     });
     // элементы без узла — в общую рамку, чтобы вид не терял их
     const placed = new Set();
-    byNode.forEach((members) => members.forEach((m) => m && placed.add(m.id)));
+    byNode.forEach((members) => members.forEach((m) => placed.add(m.id)));
     const loose = visNodes.filter((n) => !placed.has(n.id) && !byNode.has(n.id));
     if (loose.length > 1) addBoundary({ name: "не привязано к узлу", type: node_root_type(loose) }, loose);
   }

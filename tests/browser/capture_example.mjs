@@ -77,6 +77,23 @@ for (const [name, view] of ASPECT_SHOTS) {
 await page.evaluate(() => { const b = document.querySelector('#canvas-tabs .ctab[data-view="c4"]'); if (b) b.click(); });
 await sleep(600);
 
+// 37 - группировка по узлам развёртывания (group: deployment)
+await page.evaluate(() => { const b = document.querySelector('#canvas-tabs .ctab[data-view="c4"]'); if (b) b.click(); });
+await sleep(700);
+const grouped = await page.evaluate(() => {
+  const sel = document.getElementById('group-mode');
+  if (!sel) return false;
+  sel.value = 'deployment';
+  sel.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+});
+if (grouped) { await sleep(1200); await shot('37-example-deployment-group'); }
+await page.evaluate(() => {
+  const sel = document.getElementById('group-mode');
+  if (sel) { sel.value = 'containers'; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+});
+await sleep(600);
+
 // отчёт по модели
 await page.evaluate(() => document.getElementById('report-open').click());
 await page.waitForFunction(() => (document.getElementById('report-body').textContent || '').length > 40, { timeout: 25000 }).catch(() => {});
