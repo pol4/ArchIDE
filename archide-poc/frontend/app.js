@@ -4115,14 +4115,21 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
     // contents are visible without drilling into the next level.
     const childList = kids.get(node.id) || [];
     let ty = 39;
-    if (childList.length) {
+    const description = String(node.description || "").trim();
+    if (childList.length || description) {
       const counts = new Map();
       childList.forEach((k) => counts.set(k.type, (counts.get(k.type) || 0) + 1));
-      const summary = [...counts.entries()]
+      const composition = [...counts.entries()]
         .sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))
         .slice(0, 3)
         .map(([t, c]) => `${c}× ${t}`)
         .join(" · ");
+      // как в C4-диаграммах: под именем — технология/описание элемента, а если
+      // описания нет, то состав (сколько вложенных элементов каких типов)
+      let summary = description ? truncate(description, 40) : composition;
+      if (description && composition && description.length < 20) {
+        summary = `${truncate(description, 24)} · ${composition}`;
+      }
       const det = document.createElementNS(NS, "text");
       det.setAttribute("class", "node-detail");
       det.setAttribute("x", labelX);

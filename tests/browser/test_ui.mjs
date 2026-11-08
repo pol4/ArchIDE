@@ -2274,7 +2274,8 @@ async function runC4Notation(browser) {
     { id: 'system://c4/billing', type: 'System', name: 'Billing', parent: 'system://c4', evidence: ['a'] },
     { id: 'container://c4/web', type: 'Container', name: 'Web App', parent: 'system://c4', evidence: ['a'] },
     { id: 'component://c4/api', type: 'Component', name: 'API', parent: 'container://c4/web', evidence: ['a'] },
-    { id: 'component://c4/core', type: 'Component', name: 'Core', parent: 'container://c4/web', evidence: ['a'] },
+    { id: 'component://c4/core', type: 'Component', name: 'Core', parent: 'container://c4/web',
+      description: 'ядро согласования и маршрутов', evidence: ['a'] },
     { id: 'store://c4/db', type: 'DataStore', name: 'Orders DB', parent: 'system://c4', evidence: ['a'] },
     { id: 'role://c4/user', type: 'Role', name: 'Customer', parent: 'system://c4', evidence: ['a'] },
     { id: 'ext://c4/mail', type: 'ExternalSystem', name: 'Mail', parent: 'system://c4', evidence: ['a'] },
@@ -2349,6 +2350,15 @@ async function runC4Notation(browser) {
     && c4.kinds.includes('external') && c4dash.dashed
     && !c4.kinds.includes('database') && !c4.kinds.includes('person'),
     JSON.stringify({ kinds: c4.kinds, dashed: c4dash.dashed }));
+  const described = await page.evaluate(() => {
+    const gr = [...document.querySelectorAll('#canvas g[data-node-id]')]
+      .find((g) => g.getAttribute('data-node-id') === 'component://c4/core');
+    if (!gr) return null;
+    return [...gr.querySelectorAll('text')].map((t) => t.textContent).join(' | ');
+  });
+  check('C4(5) под именем элемента показывается его описание',
+    !!described && /ядро согласования/.test(described), String(described).slice(0, 120));
+
   check('C4(5) C4 element labels name the kind in brackets',
     c4.labels.some((t) => /\[\s*Software System\s*\]/i.test(t))
     && c4.labels.some((t) => /\[\s*Container\s*\]/i.test(t))

@@ -201,11 +201,33 @@ def coverage_report(graph: dict) -> dict:
         aspect = metamodel_mod.aspect_of(node.get("type"))
         aspects[aspect] = aspects.get(aspect, 0) + 1
 
+    # Иерархия: каждый контейнер/система с числом детей по типам — по ней удобно
+    # сверять модель с документацией («плоскость и её сервисы»).
+    children: dict[str, list[dict]] = {}
+    for node in nodes:
+        parent = node.get("parent")
+        if parent and parent in {n["id"] for n in nodes}:
+            children.setdefault(parent, []).append(node)
+    hierarchy = []
+    for node in nodes:
+        if node.get("type") not in ("System", "Container", "Environment", "Node"):
+            continue
+        kids = children.get(node["id"]) or []
+        if not kids and node.get("type") != "System":
+            continue
+        by_type: dict[str, int] = {}
+        for kid in kids:
+            by_type[str(kid.get("type"))] = by_type.get(str(kid.get("type")), 0) + 1
+        hierarchy.append({"id": node["id"], "name": node.get("name") or node["id"],
+                          "type": node.get("type"), "children": len(kids), "by_type": by_type})
+    hierarchy.sort(key=lambda item: -item["children"])
+
     all_aspects = list(metamodel_mod.ASPECTS.keys())
     return {
         "nodes": len(nodes),
         "levels": levels,
         "aspects": aspects,
+        "hierarchy": hierarchy,
         "missing_levels": [name for name, count in levels.items() if not count],
         "missing_aspects": [a for a in all_aspects if not aspects.get(a)],
     }

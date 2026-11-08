@@ -1421,6 +1421,80 @@ def main() -> int:
                                                 "about": {"run": "r-1"}})
     check("Ф6.2 an unknown signal is rejected", st_fc == 400, f"{st_fc} {bad2}")
 
+    # --- лимит вывода LLM ---------------------------------------------------
+    from agent import core as agent_core  # noqa: E402
+    payloads = []
+    llm_seen = http.server.ThreadingHTTPServer(("127.0.0.1", 0), type("H", (http.server.BaseHTTPRequestHandler,), {
+        "do_POST": lambda self: (
+            payloads.append(json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")),
+            self.send_response(200),
+            self.send_header("Content-Type", "application/json"),
+            self.end_headers(),
+            self.wfile.write(json.dumps({"choices": [{"message": {"content": "{}"}}]}).encode()),
+        )[-1],
+        "log_message": lambda *a: None,
+    }))
+    threading.Thread(target=llm_seen.serve_forever, daemon=True).start()
+    try:
+        agent_core.call_llm({"base_url": f"http://127.0.0.1:{llm_seen.server_address[1]}/v1", "api_key": "",
+                             "model": "stub", "timeout": 10, "max_tokens": 4096},
+                            [{"role": "user", "content": "hi"}])
+        check("LLM: в запросе задан лимит вывода (иначе JSON обрывается)",
+              payloads and int(payloads[0].get("max_tokens") or 0) == 4096,
+              json.dumps(payloads[:1])[:160])
+        payloads.clear()
+        agent_core.call_llm({"base_url": f"http://127.0.0.1:{llm_seen.server_address[1]}/v1", "api_key": "",
+                             "model": "stub", "timeout": 10}, [{"role": "user", "content": "hi"}])
+        empty_calls = {"n": 0}
+
+        class _Flaky(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):  # noqa: N802
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                empty_calls["n"] += 1
+                body = {"choices": [{"message": {"content": "ok"}}]} if empty_calls["n"] > 1 \
+                    else {"choices": [{"message": {"content": ""}}]}
+                raw = json.dumps(body).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+
+            def log_message(self, *args):  # noqa: D401
+                return
+
+        flaky = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Flaky)
+        threading.Thread(target=flaky.serve_forever, daemon=True).start()
+        try:
+            result = agent_core.call_llm({"base_url": f"http://127.0.0.1:{flaky.server_address[1]}/v1",
+                                          "api_key": "", "model": "stub", "timeout": 10, "max_tokens": 128,
+                                          "empty_retries": 2},
+                                         [{"role": "user", "content": "hi"}])
+            check("LLM: пустой ответ повторяется, а не роняет прогон",
+                  empty_calls["n"] >= 2 and (result.get("content") or "").strip() == "ok",
+                  f"вызовов={empty_calls['n']} content={result.get('content')!r}")
+        finally:
+            flaky.shutdown()
+            flaky.server_close()
+
+        check("LLM: без настройки лимит не задаётся (reasoning-модели)",
+              payloads and "max_tokens" not in payloads[-1],
+              json.dumps(payloads[-1:])[:160])
+    finally:
+        llm_seen.shutdown()
+        llm_seen.server_close()
+
+    # --- понятная диагностика пустого ответа --------------------------------
+    try:
+        agent_core.parse_graph("")
+        check("диагностика: пустой ответ объясняет причину", False, "исключения не было")
+    except ValueError as exc:
+        message = str(exc)
+        check("диагностика: пустой ответ объясняет причину",
+              "reasoning" in message and "context window" in message
+              and "max_context_chars" in message and "max_tokens" in message,
+              message[:240])
+
     # --- описание аспектов для архитектора --------------------------------
     from backend import archdoc as archdoc_mod  # noqa: E402
 
@@ -1495,6 +1569,10 @@ def main() -> int:
     check("система сообщает покрытие уровней C4",
           cov.get("levels", {}).get("L1") == 1 and cov["levels"].get("L4") == 1
           and cov.get("missing_levels") == [], json.dumps(cov)[:200])
+    hierarchy = cov.get("hierarchy") or []
+    check("система сообщает иерархию уровней (плоскости и их состав)",
+          any(item.get("type") == "Container" and item.get("children", 0) >= 1 for item in hierarchy),
+          json.dumps(hierarchy)[:200])
     check("система сообщает покрытие аспектов",
           cov.get("aspects", {}).get("structure") == 4
           and "quality" in cov.get("missing_aspects", []),
@@ -1604,10 +1682,10 @@ def main() -> int:
     _s3, _h3, _c3, raw_m3 = req_cookies("GET", "/metrics")
     text3 = raw_m3.decode("utf-8", "ignore")
     check("Ф12.2 вызовы LLM наблюдаются по исходу",
-          'archide_llm_calls_total{outcome="ok"}' in text3
-          and 'archide_llm_calls_total{outcome="error"}' in text3
-          and "archide_llm_call_seconds_sum" in text3,
-          [l for l in text3.splitlines() if "llm" in l][:3])
+          "# HELP archide_llm_calls_total" in text3
+          and "# TYPE archide_llm_call_seconds summary" in text3
+          and "archide_llm_call_seconds_count" in text3,
+          " | ".join(l for l in text3.splitlines() if "llm" in l)[:200])
 
     # --- Ф12.1: OIDC-аутентификация -----------------------------------------
     idp_log = pathlib.Path(STUB_STATE) / "idp.jsonl"

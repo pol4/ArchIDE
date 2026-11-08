@@ -22,6 +22,8 @@ DEFAULT_CONFIG = {
         "base_url": "http://localhost:11434/v1",
         "api_key": "",
         "model": "qwen2.5-coder:7b",
+        # лимит вывода: без него сервер обрезает граф и реконструкция теряет узлы
+        "max_tokens": 8192,
         # Ф3.11: how much of the accumulated session conversation may be sent
         # (0 = unlimited). A long run trims its oldest exchanges to stay inside.
         "max_context_chars": 60000,

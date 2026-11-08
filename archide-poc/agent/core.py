@@ -55,7 +55,12 @@ def _find_graph(obj) -> dict | None:
 def parse_graph(text: str) -> dict:
     """Extract and normalize a graph object from raw LLM text."""
     if not text or not text.strip():
-        raise ValueError("empty LLM response")
+        raise ValueError(
+            "empty LLM response — the model returned nothing. Two common causes: "
+            "(1) a reasoning model whose output limit is consumed by hidden reasoning "
+            "(finish_reason=length, content empty) — do not set llm.max_tokens, leave 0; "
+            "(2) the prompt material does not fit the model's context window — lower "
+            "llm.max_context_chars (session budget)")
 
     candidates: list[str] = []
     fenced = re.search(r"```(?:json)?\s*(.*?)```", text, re.S)
@@ -171,12 +176,19 @@ def call_llm(llm: dict, messages: list[dict]) -> dict:
     import urllib.request
 
     url = str(llm.get("base_url", "")).rstrip("/") + "/chat/completions"
-    payload = json.dumps({
+    # Лимит вывода задаём ТОЛЬКО если он настроен. У reasoning-моделей он покрывает
+    # и скрытые рассуждения: маленький лимит съедается ими целиком, и content
+    # приходит пустым (finish_reason=length). Без лимита сервер применяет свой
+    # умолчательный, рассуждения успевают завершиться, и ответ приходит целиком.
+    payload_body = {
         "model": llm.get("model", ""),
         "messages": messages,
         "temperature": 0,
         "stream": False,
-    }).encode("utf-8")
+    }
+    if int(llm.get("max_tokens") or 0) > 0:
+        payload_body["max_tokens"] = int(llm["max_tokens"])
+    payload = json.dumps(payload_body).encode("utf-8")
     request = urllib.request.Request(url, data=payload, method="POST")
     request.add_header("Content-Type", "application/json")
     if llm.get("api_key"):
@@ -187,16 +199,30 @@ def call_llm(llm: dict, messages: list[dict]) -> dict:
     # серверном образе — в песочнице агента импорт просто не удастся, и это ок.
     _started = time.time()
     _outcome = "ok"
+    # Пустой ответ — известная особенность локальных серверов под нагрузкой:
+    # повторяем запрос, а не роняем прогон «на пустом месте».
+    retries = max(0, int(llm.get("empty_retries", 2)))
+    data = {}
+    for attempt in range(retries + 1):
+        try:
+            with opener.open(request, timeout=float(llm.get("timeout", 180))) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            _outcome = "error"
+            detail = exc.read().decode("utf-8", "ignore")[:500]
+            raise RuntimeError(f"LLM HTTP {exc.code}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            _outcome = "error"
+            raise RuntimeError(f"LLM connection failed: {exc.reason}") from exc
+        except json.JSONDecodeError as exc:
+            _outcome = "error"
+            raise RuntimeError(f"LLM returned invalid JSON: {exc}") from exc
+        message = ((data.get("choices") or [{}])[0].get("message") or {})
+        if str(message.get("content") or "").strip() or attempt >= retries:
+            break
+        time.sleep(1.5 * (attempt + 1))
     try:
-        with opener.open(request, timeout=float(llm.get("timeout", 180))) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        _outcome = "error"
-        detail = exc.read().decode("utf-8", "ignore")[:500]
-        raise RuntimeError(f"LLM HTTP {exc.code}: {detail}") from exc
-    except urllib.error.URLError as exc:
-        _outcome = "error"
-        raise RuntimeError(f"LLM connection failed: {exc.reason}") from exc
+        pass
     finally:
         try:
             from backend import metrics as _metrics  # type: ignore
