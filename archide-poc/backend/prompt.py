@@ -223,7 +223,12 @@ Rules (same as for reconstruction):
    `access` (roles, permissions, policies), `quality` (requirements, NFR, SLO,
    constraints) and `crosscutting` where the specification calls for it;
 7. a system of realistic size: if the specification names containers, components,
-   modules, roles, entities or processes, every one of them must appear in the graph.
+   modules, roles, entities or processes, every one of them must appear in the graph;
+8. CONNECT the structural elements to each other where the specification implies
+   interaction: user interface -> service (`calls`), service -> database/queue
+   (`depends_on`, `publishes`, `subscribes`), service -> external system
+   (`calls`, `depends_on`). A C4 diagram without such relations shows boxes with
+   no connections, which is not an architecture.
 
 Repair policy: up to {max_repairs} attempts. On each attempt output ONLY the JSON
 object. There is no output file to write.

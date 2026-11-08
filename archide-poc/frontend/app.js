@@ -45,7 +45,7 @@ const C4_PALETTE = {
   behavior:   { fill: "#438DD5", text: "#FFFFFF" },
   generic:    { fill: "#999999", text: "#FFFFFF" },
 };
-const C4_EDGE_COLOR = "#707070";   // стандартный цвет связей в C4
+const C4_EDGE_COLOR = "#909aa6";   // серый C4, достаточно контрастный на тёмном фоне
 
 const C4_KIND_LABEL = {
   person: "Person", system: "Software System", external: "External System",
@@ -2473,7 +2473,7 @@ function awinSvg(width, height) {
   const id = "awin-arrow-" + (++AWIN_SEQ);
   const defs = svgEl("defs");
   const marker = svgEl("marker", { id, viewBox: "0 0 10 10", refX: 9, refY: 5,
-    markerWidth: 6, markerHeight: 6, orient: "auto-start-reverse" });
+    markerWidth: 9, markerHeight: 9, markerUnits: "userSpaceOnUse", orient: "auto-start-reverse" });
   marker.appendChild(svgEl("path", { d: "M0,0 L10,5 L0,10 z", fill: "#8b949e" }));
   defs.appendChild(marker);
   svg.appendChild(defs);
@@ -3050,7 +3050,7 @@ function rGraph(aspect, graph, nodes, orderOverride) {
 
   const defs = svgEl("defs");
   const marker = svgEl("marker", { id: "awin-arrow-" + aspect, viewBox: "0 0 10 10",
-    refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto-start-reverse" });
+    refX: 9, refY: 5, markerWidth: 9, markerHeight: 9, markerUnits: "userSpaceOnUse", orient: "auto-start-reverse" });
   marker.appendChild(svgEl("path", { d: "M0,0 L10,5 L0,10 z", fill: "#8b949e" }));
   defs.appendChild(marker);
   svg.appendChild(defs);
@@ -3884,9 +3884,11 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
   marker.setAttribute("viewBox", "0 0 10 10");
   marker.setAttribute("refX", "10");
   marker.setAttribute("refY", "5");
-  marker.setAttribute("markerWidth", "9");
-  marker.setAttribute("markerHeight", "9");
+  marker.setAttribute("markerWidth", "13");
+  marker.setAttribute("markerHeight", "13");
   marker.setAttribute("orient", "auto-start-reverse");
+  // userSpaceOnUse — наконечник не сжимается вместе с зумом
+  marker.setAttribute("markerUnits", "userSpaceOnUse");
   const head = document.createElementNS(NS, "path");
   head.setAttribute("d", "M0,1 L10,5 L0,9 z");
   head.setAttribute("fill", C4_EDGE_COLOR);
@@ -3943,6 +3945,7 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
   // edge labels live in their own layer, moved above the nodes once they exist,
   // so a connection stays legible even where it passes behind an element
   let labelSeq = 0;
+  let edgeCount = 0;
   const labelLayer = document.createElementNS(NS, "g");
   labelLayer.setAttribute("class", "edge-labels");
   viewport.appendChild(labelLayer);
@@ -3975,12 +3978,15 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
     path.setAttribute("d", `M${from.x},${from.y} Q${cx},${cy} ${to.x},${to.y}`);
     path.setAttribute("class", "edge-line" + (t === "contains" ? " edge-contains" : ""));
     path.setAttribute("stroke", colour);
-    path.setAttribute("stroke-width", t === "contains" ? "1.5" : "2.2");
+    path.setAttribute("stroke-width", t === "contains" ? "1.8" : "2.6");
+    // толщина не масштабируется зумом: на общем виде связь остаётся видимой
+    path.setAttribute("vector-effect", "non-scaling-stroke");
     path.setAttribute("marker-end", "url(#arrow)");
     const title = document.createElementNS(NS, "title");
     title.textContent = `${e.source} → ${e.target}\n${t}${e.description ? "\n" + e.description : ""}`;
     path.appendChild(title);
     viewport.appendChild(path);
+    edgeCount += 1;
     // C4 edges carry their meaning: label the line at its midpoint
     if (t === "contains" || e.source === e.target) return;
     // stagger along the curve (quadratic Bezier) so labels of parallel edges
@@ -4010,6 +4016,17 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
   });
 
   const SRC_COLORS = { code: "#22d3ee", docs: "#f97316" };
+  if (!edgeCount && visNodes.length >= 2 && state.view === "c4") {
+    // в C4-виде видно только структурные связи; если их нет — объясняем, где искать
+    const hint = document.createElementNS(NS, "text");
+    hint.setAttribute("class", "node-detail");
+    hint.setAttribute("x", LABEL_W + PAD + 8);
+    hint.setAttribute("y", PAD + 10);
+    hint.setAttribute("fill", "#909aa6");
+    hint.textContent = "связей между структурными элементами нет — связи смотрите в подзакладках аспектов";
+    viewport.appendChild(hint);
+  }
+
   visNodes.forEach((node) => {
     const p = pos.get(node.id);
     if (!p) return;

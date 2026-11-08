@@ -1473,6 +1473,9 @@ def main() -> int:
           all(t in design for t in ("System", "Container", "Component", "Module"))
           and "L1" in design and "L4" in design,
           design[:200])
+    check("синтез: промпт требует связи между структурными элементами",
+          "CONNECT the structural elements" in design and "calls" in design
+          and "depends_on" in design, design[-300:])
     check("синтез: промпт требует все аспекты",
           "aspect" in design.lower() and "interface" in design.lower()
           and "data" in design.lower() and "behaviour" in design.lower()

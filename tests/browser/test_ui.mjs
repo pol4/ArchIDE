@@ -2466,6 +2466,21 @@ async function runC4Notation(browser) {
   check('C4: наконечник совпадает по цвету с линией',
     arrows.mismatch === 0, JSON.stringify(arrows).slice(0, 220));
 
+  // масштаб не должен уменьшать толщину связи и размер стрелки: иначе на общем
+  // виде линия тоньше пикселя и стрелку не видно
+  const scaling = await page.evaluate(() => {
+    const p = document.querySelector('#canvas path.edge-line');
+    const marker = document.getElementById('arrow');
+    return {
+      nonScaling: !!p && p.getAttribute('vector-effect') === 'non-scaling-stroke',
+      markerUnits: marker ? marker.getAttribute('markerUnits') : null,
+      width: p ? Number(p.getAttribute('stroke-width') || 0) : 0,
+    };
+  });
+  check('C4: толщина связи и стрелка не масштабируются зумом',
+    scaling.nonScaling && scaling.markerUnits === 'userSpaceOnUse' && scaling.width >= 2,
+    JSON.stringify(scaling));
+
   // the deployment sub-tab draws deployment nodes with a double border
   await clickChip(page, 'deployment');
   await sleep(600);

@@ -60,6 +60,11 @@
       "type": "anchored_to"
     },
     {
+      "source": "component://approvalhub/container/web-app",
+      "target": "component://approvalhub/container/approval-service",
+      "type": "calls"
+    },
+    {
       "evidence": "00-description.md: сервис уведомлений (рассылка писем и внутренних оповещений); подписка на события в брокере",
       "source": "component://approvalhub/container/notification-service",
       "target": "iface://approvalhub/event-subscription-api",
@@ -102,9 +107,29 @@
       "type": "contains"
     },
     {
+      "source": "component://approvalhub/container/approval-service",
+      "target": "component://approvalhub/container/postgresql",
+      "type": "depends_on"
+    },
+    {
+      "source": "component://approvalhub/container/task-scheduler",
+      "target": "component://approvalhub/container/postgresql",
+      "type": "depends_on"
+    },
+    {
       "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ; КОНТЕЙНЕРЫ",
       "source": "component://approvalhub/container/approval-service",
       "target": "deployment://kubernetes-prod",
+      "type": "deployed_on"
+    },
+    {
+      "source": "component://approvalhub/container/approval-service",
+      "target": "deployment://kubernetes-prod",
+      "type": "deployed_on"
+    },
+    {
+      "source": "component://approvalhub/container/notification-service",
+      "target": "deployment://internal-company-network",
       "type": "deployed_on"
     },
     {
@@ -139,6 +164,11 @@
     },
     {
       "evidence": "00-description.md: РАЗВЁРТЫВАНИЕ; КОНТЕЙНЕРЫ",
+      "source": "component://approvalhub/container/web-app",
+      "target": "deployment://office-network",
+      "type": "deployed_on"
+    },
+    {
       "source": "component://approvalhub/container/web-app",
       "target": "deployment://office-network",
       "type": "deployed_on"
@@ -436,6 +466,11 @@
       "source": "behaviour://request-state-machine",
       "target": "behaviour://transition/submit",
       "type": "owns"
+    },
+    {
+      "source": "component://approvalhub/container/approval-service",
+      "target": "component://approvalhub/container/rabbitmq",
+      "type": "publishes"
     },
     {
       "evidence": "00-description.md: КОМПОНЕНТЫ (уровень 3): в сервисе согласования: компонент «Права и роли» (проверка доступа); ЛЮДИ И ВНЕШНИЕ СИСТЕМЫ: сотрудник; ДАННЫЕ: Сотрудник.",

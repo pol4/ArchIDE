@@ -341,7 +341,7 @@ aside.sidebar { position: relative; }
 .node-box { stroke-width: 1.5; rx: 7; }
 /* C4 readability: connections must stay visible over the graph (edges are
    anchored on box borders and carry their meaning as a label) */
-.edge-line { fill: none; stroke-width: 2.2; opacity: 1; }
+.edge-line { fill: none; stroke-width: 2.6; opacity: 1; vector-effect: non-scaling-stroke; }
 .edge-contains { stroke: var(--line); stroke-dasharray: 4 4; opacity: 0.85; }
 .edge-label { font: 600 10px ui-monospace, Menlo, monospace; fill: var(--text);
   opacity: 0.95; pointer-events: none; }
