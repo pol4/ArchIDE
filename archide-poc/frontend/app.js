@@ -54,6 +54,11 @@ const C4_KIND_LABEL = {
   quality: "Quality", process: "Process", behavior: "State",
 };
 
+function node_root_type(nodes) {
+  const types = [...new Set((nodes || []).map((n) => n && n.type).filter(Boolean))];
+  return types.length === 1 ? types[0] : "Container";
+}
+
 function c4Kind(type) {
   return C4_KIND[String(type || "")] || "generic";
 }
@@ -134,7 +139,7 @@ const state = {
   awinMode: {}, awinSeq: {}, lastAwin: null, lens: null, lensFocus: null,
   levelOnly: null, levelsUp: 1, levelsDown: 2,
   sourceMode: "all", aspects: new Set(["structure"]),
-  view: "c4", treeSel: null, treeHidden: false,
+  view: "c4", treeSel: null, treeHidden: false, groupMode: "containers",
   layout: { mode: "", layout: "", positions: {} }, layoutModel: null, layoutTimer: null,
   ragHits: [], promptHistory: [], promptIndex: 0, pendingDoc: null, modelName: null,
 };
@@ -961,6 +966,7 @@ function persistUi() {
       awinMode: state.awinMode || {},
       theme: document.documentElement.dataset.theme || "dark",
       view: state.view || "c4",
+      groupMode: state.groupMode || "containers",
       treeHidden: !!state.treeHidden,
       treeSel: state.treeSel || null,
       panels: {
@@ -986,6 +992,8 @@ async function restoreUi() {
   if (saved.awinMode) state.awinMode = saved.awinMode;
   if (typeof saved.levelsUp === "number") state.levelsUp = saved.levelsUp;
   if (typeof saved.view === "string" && VIEW_TABS.includes(saved.view)) state.view = saved.view;
+  if (saved.groupMode === "deployment" || saved.groupMode === "containers") state.groupMode = saved.groupMode;
+  if ($("group-mode")) $("group-mode").value = state.groupMode;
   if (saved.treeSel) state.treeSel = saved.treeSel;
   if (saved.treeHidden && $("c4-tree")) {
     state.treeHidden = true;
@@ -1788,6 +1796,14 @@ function wireControls() {
     $("tree-resize").classList.toggle("hidden", state.treeHidden);
     render();
   });
+  if ($("group-mode")) {
+    $("group-mode").value = state.groupMode || "containers";
+    $("group-mode").addEventListener("change", () => {
+      state.groupMode = $("group-mode").value === "deployment" ? "deployment" : "containers";
+      render();
+      setStatus(`grouping: ${state.groupMode}`, "ok");
+    });
+  }
   if ($("layout-auto")) $("layout-auto").addEventListener("click", autoLayout);
   if ($("layout-reset")) $("layout-reset").addEventListener("click", resetLayout);
   wirePanelResize();
@@ -2900,10 +2916,10 @@ function rSequence(aspect, graph, nodes) {
     if (x1 === x2) {
       // вызов самого себя — петля, иначе линия нулевой длины не видна
       line = svgEl("path", { d: `M${x1},${y} h40 v14 h-40`,
-        fill: "none", stroke: "#2f81f7", "stroke-width": 1.4,
+        fill: "none", stroke: C4_EDGE_COLOR, "stroke-width": 1.4,
         "marker-end": `url(#${svg.dataset.marker})` });
     } else {
-      line = svgEl("line", { x1, y1: y, x2, y2: y, stroke: "#2f81f7", "stroke-width": 1.4,
+      line = svgEl("line", { x1, y1: y, x2, y2: y, stroke: C4_EDGE_COLOR, "stroke-width": 1.4,
         "marker-end": `url(#${svg.dataset.marker})` });
     }
     line.setAttribute("class", "seq-msg");
@@ -3809,19 +3825,43 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
   // (namespace/container boundaries) в C4-диаграммах. Внешние группы рисуются
   // раньше, поэтому внутренние оказываются выше слоем.
   const boundaryBoxes = [];
-  visNodes.forEach((node) => {
-    const kids = (view.kids.get(node.id) || []).filter((k) => pos.has(k.id));
-    if (!kids.length) return;
-    const xs = kids.map((k) => pos.get(k.id));
+  const addBoundary = (node, members) => {
+    const xs = members.map((k) => pos.get(k.id)).filter(Boolean);
+    if (!xs.length) return;
     boundaryBoxes.push({
       node,
       x1: Math.min(...xs.map((q) => q.x)),
       y1: Math.min(...xs.map((q) => q.y)),
       x2: Math.max(...xs.map((q) => q.x + q.w)),
       y2: Math.max(...xs.map((q) => q.y + q.h)),
-      size: kids.length,
+      size: members.length,
     });
-  });
+  };
+  if (state.groupMode === "deployment") {
+    // группировка по развёртыванию: рамка вокруг элементов одного узла
+    const byNode = new Map();
+    (view.edges || []).forEach((e) => {
+      if (e.type !== "deployed_on" || !pos.has(e.source) || !pos.has(e.target)) return;
+      if (!byNode.has(e.target)) byNode.set(e.target, []);
+      byNode.get(e.target).push(view.byId.get(e.source));
+    });
+    byNode.forEach((members, nodeId) => {
+      const node = view.byId.get(nodeId);
+      if (node) addBoundary(node, members.filter(Boolean));
+    });
+    // элементы без узла — в общую рамку, чтобы вид не терял их
+    const placed = new Set();
+    byNode.forEach((members) => members.forEach((m) => m && placed.add(m.id)));
+    const loose = visNodes.filter((n) => !placed.has(n.id) && !byNode.has(n.id));
+    if (loose.length > 1) addBoundary({ name: "не привязано к узлу", type: node_root_type(loose) }, loose);
+  }
+  if (!boundaryBoxes.length) {
+    visNodes.forEach((node) => {
+      const kids = (view.kids.get(node.id) || []).filter((k) => pos.has(k.id));
+      if (!kids.length) return;
+      addBoundary(node, kids);
+    });
+  }
   boundaryBoxes.sort((a, b) => b.size - a.size);
   boundaryBoxes.forEach((b) => {
     b.x1 -= 16; b.y1 -= 34; b.x2 += 16; b.y2 += 16;
@@ -3830,22 +3870,23 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
   const totalW = LABEL_W + maxRowWidth + PAD * 2;
   const totalH = rows.length * (NH + GY) - GY + PAD * 2 + 30;
 
+  // Наконечник один и того же серого, что и линии: раньше он красился по типу
+  // связи и для большинства типов маркер вообще не создавался — стрелки были
+  // невидимы. Стрелка ставится на КАЖДУЮ связь.
   const defs = document.createElementNS(NS, "defs");
-  Object.entries(EDGE_COLORS).forEach(([t, c]) => {
-    const m = document.createElementNS(NS, "marker");
-    m.setAttribute("id", "arrow-" + t);
-    m.setAttribute("viewBox", "0 0 10 10");
-    m.setAttribute("refX", "9");
-    m.setAttribute("refY", "5");
-    m.setAttribute("markerWidth", "7");
-    m.setAttribute("markerHeight", "7");
-    m.setAttribute("orient", "auto-start-reverse");
-    const p = document.createElementNS(NS, "path");
-    p.setAttribute("d", "M0,0 L10,5 L0,10 z");
-    p.setAttribute("fill", c);
-    m.appendChild(p);
-    defs.appendChild(m);
-  });
+  const marker = document.createElementNS(NS, "marker");
+  marker.setAttribute("id", "arrow");
+  marker.setAttribute("viewBox", "0 0 10 10");
+  marker.setAttribute("refX", "10");
+  marker.setAttribute("refY", "5");
+  marker.setAttribute("markerWidth", "9");
+  marker.setAttribute("markerHeight", "9");
+  marker.setAttribute("orient", "auto-start-reverse");
+  const head = document.createElementNS(NS, "path");
+  head.setAttribute("d", "M0,1 L10,5 L0,9 z");
+  head.setAttribute("fill", C4_EDGE_COLOR);
+  marker.appendChild(head);
+  defs.appendChild(marker);
   svg.appendChild(defs);
 
   const viewport = document.createElementNS(NS, "g");
@@ -3930,7 +3971,7 @@ function drawPane(svg, wrap, emptyEl, aspectsSet, view) {
     path.setAttribute("class", "edge-line" + (t === "contains" ? " edge-contains" : ""));
     path.setAttribute("stroke", colour);
     path.setAttribute("stroke-width", t === "contains" ? "1.5" : "2.2");
-    if (t !== "contains") path.setAttribute("marker-end", `url(#arrow-${t})`);
+    path.setAttribute("marker-end", "url(#arrow)");
     const title = document.createElementNS(NS, "title");
     title.textContent = `${e.source} → ${e.target}\n${t}${e.description ? "\n" + e.description : ""}`;
     path.appendChild(title);

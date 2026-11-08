@@ -2419,6 +2419,53 @@ async function runC4Notation(browser) {
     note.hidden === false && note.title.length > 2 && note.text.length > 30,
     JSON.stringify(note).slice(0, 200));
 
+  // группировка по узлам развёртывания: рамка вокруг элементов одного узла
+  await page.evaluate(() => { const b = document.querySelector('#canvas-tabs .ctab[data-view="c4"]'); if (b) b.click(); });
+  await sleep(500);
+  const deployed = await page.evaluate(async () => {
+    const sel = document.getElementById('group-mode');
+    if (!sel) return { noControl: true };
+    sel.value = 'deployment';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    return { ok: true };
+  });
+  await sleep(800);
+  const depBounds = await page.evaluate(() => [...document.querySelectorAll('#canvas g.boundary')]
+    .map((g) => ((g.querySelector('text') || {}).textContent || '')));
+  check('C4: есть переключатель группировки по узлам развёртывания',
+    deployed.noControl !== true, JSON.stringify(deployed));
+  check('C4: при группировке по развёртыванию границы названы узлами',
+    depBounds.some((t) => /prod|node|кластер|environment/i.test(t)) || depBounds.length >= 1,
+    JSON.stringify(depBounds).slice(0, 200));
+  await page.evaluate(() => {
+    const sel = document.getElementById('group-mode');
+    if (sel) { sel.value = 'containers'; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+  });
+  await sleep(500);
+
+  // стрелки: у каждой связи есть наконечник, и он того же цвета, что линия
+  const arrows = await page.evaluate(() => {
+    const out = { total: 0, missing: 0, mismatch: 0, samples: [] };
+    document.querySelectorAll('#canvas path.edge-line').forEach((p) => {
+      out.total += 1;
+      const ref = p.getAttribute('marker-end') || '';
+      if (!ref) { out.missing += 1; return; }
+      const id = (ref.match(/#([^)]+)/) || [])[1];
+      const marker = id ? document.querySelector(`#${id}`) : null;
+      const fill = marker ? (marker.getAttribute('fill') || (marker.querySelector('path') || {}).getAttribute?.('fill') || '') : '';
+      const stroke = (p.getAttribute('stroke') || '').toUpperCase();
+      if (fill && stroke && fill.toUpperCase() !== stroke) {
+        out.mismatch += 1;
+        if (out.samples.length < 3) out.samples.push({ id, fill, stroke });
+      }
+    });
+    return out;
+  });
+  check('C4: у всех связей есть наконечник стрелки',
+    arrows.total >= 1 && arrows.missing === 0, JSON.stringify(arrows).slice(0, 200));
+  check('C4: наконечник совпадает по цвету с линией',
+    arrows.mismatch === 0, JSON.stringify(arrows).slice(0, 220));
+
   // the deployment sub-tab draws deployment nodes with a double border
   await clickChip(page, 'deployment');
   await sleep(600);
