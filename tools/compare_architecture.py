@@ -47,8 +47,13 @@ def normalize(name: str) -> str:
 
 
 def expected_from_docs(docs_dir: pathlib.Path) -> dict[str, set[str]]:
-    """Ожидаемые элементы: узлы и подграфы mermaid + заголовки приложений."""
+    """Ожидаемые элементы: узлы mermaid — состав системы, заголовки — подсказки.
+
+    Узлы диаграмм и заголовки разделов держим раздельно: заголовок часто
+    описательный («что можно проверять»), и мешать их в одном покрытии нельзя.
+    """
     nodes: set[str] = set()
+    headings: set[str] = set()
     groups: set[str] = set()
     for path in sorted(docs_dir.rglob("*.md")):
         text = path.read_text(encoding="utf-8", errors="ignore")
@@ -63,8 +68,8 @@ def expected_from_docs(docs_dir: pathlib.Path) -> dict[str, set[str]]:
             # заголовок-элемент короткий и без глагольных оборотов; длинные фразы
             # («как это работает», «что дальше») элементом системы не являются
             if 3 < len(candidate) <= 60 and len(candidate.split()) <= 6 and normalize(candidate):
-                nodes.add(candidate)
-    return {"nodes": nodes, "groups": groups}
+                headings.add(candidate)
+    return {"nodes": nodes, "headings": headings, "groups": groups}
 
 
 def produced_from_model(model_path: pathlib.Path) -> list[dict]:
@@ -106,21 +111,32 @@ def main() -> int:
 
     produced = produced_from_model(model_path)
     exp = expected_from_docs(docs_dir)
-    expected = sorted(exp["nodes"])
 
+    # 1) состав системы — узлы mermaid-диаграмм (главный источник сверки)
+    diagram = sorted(exp["nodes"])
     found, missing = [], []
-    for name in expected:
+    for name in diagram:
         node = match(name, produced)
         (found if node else missing).append((name, node))
 
-    print(f"ожидаемых имён в документации: {len(expected)}")
-    print(f"элементов в модели:            {len(produced)}")
-    print(f"совпало:                       {len(found)}")
-    print(f"не найдено:                    {len(missing)}")
+    # 2) заголовки разделов — вторичный источник
+    head_found = sum(1 for h in sorted(exp.get("headings") or []) if match(h, produced))
+    heads = len(exp.get("headings") or [])
+
+    print("— элементы из диаграмм (основная сверка):")
+    print(f"    в документации: {len(diagram)}")
+    print(f"    найдено в модели: {len(found)}")
+    print(f"    не найдено:       {len(missing)}")
+    if diagram:
+        print(f"    покрытие:         {len(found) / len(diagram) * 100:.0f}%")
+    print()
+    print("— заголовки разделов (подсказки, не состав):")
+    print(f"    в��его {heads}, упомянуты в модели {head_found}")
+    print(f"\n— эле��ентов в модели: {len(produced)}")
     print()
 
     if missing:
-        print(f"— не найдено в модели ({min(args.limit, len(missing))} из {len(missing)}):")
+        print(f"— не найдено из диаграмм ({min(args.limit, len(missing))} из {len(missing)}):")
         for name, _ in missing[:args.limit]:
             print(f"    {name[:90]}")
 
